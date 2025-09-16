@@ -39,6 +39,12 @@ class LocationTrackingService : Service() {
             ACTION_STOP_TRACKING -> stopLocationTracking()
             ACTION_PAUSE_TRACKING -> pauseLocationTracking()
             ACTION_RESUME_TRACKING -> resumeLocationTracking()
+            "UPDATE_NOTIFICATION" -> {
+                val distance = intent.getStringExtra("distance") ?: ""
+                val duration = intent.getStringExtra("duration") ?: ""
+                val pace = intent.getStringExtra("pace") ?: ""
+                updateNotification(distance, duration, pace)
+            }
         }
         
         return START_STICKY // Restart service if killed

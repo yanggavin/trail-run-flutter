@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/activity_summary_screen.dart';
 import '../screens/activity_history_screen.dart';
+import '../navigation/app_router.dart';
 import '../../domain/models/activity.dart';
 import '../../domain/models/track_point.dart';
 import '../../domain/models/photo.dart';
@@ -56,7 +57,7 @@ class HomeScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // TODO: Navigate to tracking screen
+          AppNavigator.toTracking(context);
         },
         tooltip: 'Start Tracking',
         child: const Icon(Icons.play_arrow),

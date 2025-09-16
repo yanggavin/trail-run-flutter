@@ -4,6 +4,8 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private var backgroundLocationManager: BackgroundLocationManager?
+  private var permissionChannel: FlutterMethodChannel?
+  private var lifecycleChannel: FlutterMethodChannel?
   
   override func application(
     _ application: UIApplication,
@@ -11,30 +13,47 @@ import UIKit
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     
-    setupLocationMethodChannel()
+    setupMethodChannels()
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
   
-  private func setupLocationMethodChannel() {
+  private func setupMethodChannels() {
     guard let controller = window?.rootViewController as? FlutterViewController else {
       return
     }
     
-    let methodChannel = FlutterMethodChannel(
+    // Location service channel
+    let locationChannel = FlutterMethodChannel(
       name: "com.trailrun.location_service",
       binaryMessenger: controller.binaryMessenger
     )
     
     backgroundLocationManager = BackgroundLocationManager()
-    backgroundLocationManager?.configure(with: methodChannel)
+    backgroundLocationManager?.configure(with: locationChannel)
     
-    methodChannel.setMethodCallHandler { [weak self] (call, result) in
-      self?.handleMethodCall(call, result: result)
+    locationChannel.setMethodCallHandler { [weak self] (call, result) in
+      self?.handleLocationMethodCall(call, result: result)
     }
+    
+    // Permission channel
+    permissionChannel = FlutterMethodChannel(
+      name: "com.trailrun.permissions",
+      binaryMessenger: controller.binaryMessenger
+    )
+    
+    permissionChannel?.setMethodCallHandler { [weak self] (call, result) in
+      self?.handlePermissionMethodCall(call, result: result)
+    }
+    
+    // App lifecycle channel
+    lifecycleChannel = FlutterMethodChannel(
+      name: "com.trailrun.app_lifecycle",
+      binaryMessenger: controller.binaryMessenger
+    )
   }
   
-  private func handleMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+  private func handleLocationMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "startBackgroundLocationUpdates":
       if let args = call.arguments as? [String: Any],
@@ -73,5 +92,48 @@ import UIKit
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+  
+  private func handlePermissionMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "getIOSVersion":
+      result(UIDevice.current.systemVersion)
+      
+    case "isLowPowerModeEnabled":
+      result(ProcessInfo.processInfo.isLowPowerModeEnabled)
+      
+    case "openAppSettings":
+      if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+        UIApplication.shared.open(settingsUrl)
+        result(true)
+      } else {
+        result(false)
+      }
+      
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+  
+  // MARK: - App Lifecycle
+  
+  override func applicationDidEnterBackground(_ application: UIApplication) {
+    super.applicationDidEnterBackground(application)
+    lifecycleChannel?.invokeMethod("onBackground", arguments: nil)
+  }
+  
+  override func applicationWillEnterForeground(_ application: UIApplication) {
+    super.applicationWillEnterForeground(application)
+    lifecycleChannel?.invokeMethod("onForeground", arguments: nil)
+  }
+  
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    super.applicationDidBecomeActive(application)
+    lifecycleChannel?.invokeMethod("onActive", arguments: nil)
+  }
+  
+  override func applicationWillResignActive(_ application: UIApplication) {
+    super.applicationWillResignActive(application)
+    lifecycleChannel?.invokeMethod("onInactive", arguments: nil)
   }
 }
