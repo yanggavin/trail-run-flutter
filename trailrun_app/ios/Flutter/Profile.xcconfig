@@ -1,4 +1,4 @@
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"
 #include "Generated.xcconfig"
 
 // TrailRun App Configuration
@@ -9,10 +9,11 @@ IPHONEOS_DEPLOYMENT_TARGET = 13.0
 SWIFT_VERSION = 5.0
 ENABLE_BITCODE = NO
 
-// Release specific settings
+// Profile specific settings (optimized but with debug symbols)
 SWIFT_OPTIMIZATION_LEVEL = -O
 SWIFT_COMPILATION_MODE = wholemodule
 GCC_OPTIMIZATION_LEVEL = s
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
 VALIDATE_PRODUCT = YES
 
 // Fix script execution issues

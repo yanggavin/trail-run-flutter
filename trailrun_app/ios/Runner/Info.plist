@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Trailrun App</string>
+	<string>TrailRun</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>trailrun_app</string>
+	<string>TrailRun</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -65,6 +65,45 @@
 	<array>
 		<string>location</string>
 		<string>background-fetch</string>
+		<string>background-processing</string>
 	</array>
+	
+	<!-- App Transport Security -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	
+	<!-- Minimum iOS version -->
+	<key>MinimumOSVersion</key>
+	<string>13.0</string>
+	
+	<!-- App category -->
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.healthcare-fitness</string>
+	
+	<!-- Required device capabilities -->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>location-services</string>
+		<string>gps</string>
+	</array>
+	
+	<!-- Status bar style -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleDefault</string>
+	
+	<!-- Prevent app from being backed up -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	
+	<!-- File sharing -->
+	<key>UIFileSharingEnabled</key>
+	<false/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 </dict>
 </plist>

@@ -72,3 +72,14 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+  
+  # iOS specific configuration
+  fonts:
+    - family: SF Pro Display
+      fonts:
+        - asset: fonts/SFProDisplay-Regular.ttf
+        - asset: fonts/SFProDisplay-Bold.ttf
+          weight: 700
+  
+  # Generate app icons for iOS
+  generate: true
