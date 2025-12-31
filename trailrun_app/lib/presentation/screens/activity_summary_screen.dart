@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/activity.dart';
 import '../../domain/models/photo.dart';
 import '../../domain/enums/privacy_level.dart';
+import '../../data/services/share_export_provider.dart';
 import '../widgets/activity_map_widget.dart';
 import '../widgets/activity_stats_widget.dart';
 import '../widgets/elevation_chart_widget.dart';
@@ -337,13 +338,41 @@ class _ActivitySummaryScreenState extends ConsumerState<ActivitySummaryScreen> {
     );
   }
 
-  void _shareActivity() {
-    // TODO: Implement activity sharing functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Activity sharing will be implemented in a future task'),
+  Future<void> _shareActivity() async {
+    final shareService = ref.read(shareExportServiceProvider);
+    
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
+
+    try {
+      // In a real app we would capture map snapshot here
+      // Uint8List? mapSnapshot = await _captureMapSnapshot();
+      
+      await shareService.shareActivity(
+        _activity,
+        mapSnapshot: null, // Placeholder
+      );
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // Dismiss loading
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share activity: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

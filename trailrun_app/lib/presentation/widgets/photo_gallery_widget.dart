@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/photo.dart';
+import '../../data/services/share_export_provider.dart';
 
 /// Widget displaying a grid or horizontal list of photos
 class PhotoGalleryWidget extends StatelessWidget {
@@ -249,7 +251,7 @@ class _PhotoThumbnail extends StatelessWidget {
 }
 
 /// Full-screen photo gallery screen
-class PhotoGalleryScreen extends StatefulWidget {
+class PhotoGalleryScreen extends ConsumerStatefulWidget {
   const PhotoGalleryScreen({
     super.key,
     required this.photos,
@@ -262,10 +264,10 @@ class PhotoGalleryScreen extends StatefulWidget {
   final int initialPhotoIndex;
 
   @override
-  State<PhotoGalleryScreen> createState() => _PhotoGalleryScreenState();
+  ConsumerState<PhotoGalleryScreen> createState() => _PhotoGalleryScreenState();
 }
 
-class _PhotoGalleryScreenState extends State<PhotoGalleryScreen> {
+class _PhotoGalleryScreenState extends ConsumerState<PhotoGalleryScreen> {
   late PageController _pageController;
   late int _currentIndex;
 
@@ -478,12 +480,21 @@ class _PhotoGalleryScreenState extends State<PhotoGalleryScreen> {
     );
   }
 
-  void _sharePhoto() {
-    // TODO: Implement photo sharing
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Photo sharing will be implemented in a future task'),
-      ),
-    );
+  Future<void> _sharePhoto() async {
+    final photo = widget.photos[_currentIndex];
+    final shareService = ref.read(shareExportServiceProvider);
+    
+    try {
+      await shareService.sharePhoto(photo);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share photo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

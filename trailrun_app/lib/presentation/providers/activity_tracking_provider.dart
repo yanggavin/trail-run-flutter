@@ -10,6 +10,7 @@ class ActivityTrackingState {
     this.isTracking = false,
     this.isPaused = false,
     this.isAutopaused = false,
+    this.isAutoPauseEnabled = true,
     this.elapsedTime = Duration.zero,
     this.distance = 0.0,
     this.currentPace = 0.0,
@@ -25,6 +26,7 @@ class ActivityTrackingState {
   final bool isTracking;
   final bool isPaused;
   final bool isAutopaused;
+  final bool isAutoPauseEnabled;
   final Duration elapsedTime;
   final double distance;
   final double currentPace;
@@ -40,6 +42,7 @@ class ActivityTrackingState {
     bool? isTracking,
     bool? isPaused,
     bool? isAutopaused,
+    bool? isAutoPauseEnabled,
     Duration? elapsedTime,
     double? distance,
     double? currentPace,
@@ -55,6 +58,7 @@ class ActivityTrackingState {
       isTracking: isTracking ?? this.isTracking,
       isPaused: isPaused ?? this.isPaused,
       isAutopaused: isAutopaused ?? this.isAutopaused,
+      isAutoPauseEnabled: isAutoPauseEnabled ?? this.isAutoPauseEnabled,
       elapsedTime: elapsedTime ?? this.elapsedTime,
       distance: distance ?? this.distance,
       currentPace: currentPace ?? this.currentPace,
@@ -82,6 +86,11 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
   final ActivityTrackingService _trackingService;
 
   void _initialize() {
+    // Initial state
+    state = state.copyWith(
+      isAutoPauseEnabled: _trackingService.isAutoPauseEnabled,
+    );
+
     // Listen to activity updates
     _trackingService.currentActivityStream.listen(
       (activity) {
@@ -156,6 +165,11 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
       state = state.copyWith(error: e.toString());
       return null;
     }
+  }
+
+  void toggleAutoPause() {
+    final isEnabled = _trackingService.toggleAutoPause();
+    state = state.copyWith(isAutoPauseEnabled: isEnabled);
   }
 
   void clearError() {

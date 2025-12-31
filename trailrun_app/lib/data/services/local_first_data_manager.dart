@@ -396,7 +396,7 @@ class LocalFirstDataManager {
       activityCount: activityCount,
       photoCount: photoCount,
       trackPointCount: trackPointCount,
-      lastSyncTime: DateTime.now(), // TODO: Store actual last sync time
+      lastSyncTime: _syncService!.lastSyncTime ?? DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 }

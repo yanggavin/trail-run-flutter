@@ -68,6 +68,22 @@ class ShareExportService {
     }
   }
 
+  /// Share a single photo
+  Future<void> sharePhoto(Photo photo) async {
+    try {
+      final file = File(photo.filePath);
+      if (await file.exists()) {
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: photo.caption,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error sharing photo: $e');
+      rethrow;
+    }
+  }
+
   /// Export activity as GPX file
   Future<XFile> exportActivityAsGpx(Activity activity) async {
     try {

@@ -11,6 +11,7 @@ class TrackingControlsWidget extends StatelessWidget {
     required this.onPausePressed,
     required this.onResumePressed,
     required this.onStopPressed,
+    this.onAutoPauseToggle,
   });
 
   final ActivityTrackingState trackingState;
@@ -18,6 +19,7 @@ class TrackingControlsWidget extends StatelessWidget {
   final VoidCallback onPausePressed;
   final VoidCallback onResumePressed;
   final VoidCallback onStopPressed;
+  final VoidCallback? onAutoPauseToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -123,14 +125,15 @@ class TrackingControlsWidget extends StatelessWidget {
   }
 
   Widget _buildAutoPauseToggle() {
+    final isEnabled = trackingState.isAutoPauseEnabled;
     return _buildControlButton(
       onPressed: () {
         HapticFeedback.selectionClick();
-        // TODO: Toggle auto-pause setting
+        onAutoPauseToggle?.call();
       },
-      icon: trackingState.isAutopaused ? Icons.pause_circle : Icons.pause_circle_outline,
+      icon: isEnabled ? Icons.pause_circle : Icons.pause_circle_outline,
       label: 'AUTO',
-      color: trackingState.isAutopaused ? Colors.blue : Colors.grey,
+      color: isEnabled ? Colors.blue : Colors.grey,
       size: _ControlButtonSize.small,
     );
   }

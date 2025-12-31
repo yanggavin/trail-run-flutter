@@ -213,6 +213,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
                 onPausePressed: _handlePauseTracking,
                 onResumePressed: _handleResumeTracking,
                 onStopPressed: _handleStopTracking,
+                onAutoPauseToggle: _handleAutoPauseToggle,
               ),
             ],
           ),
@@ -356,6 +357,21 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
           ),
         );
       }
+    }
+  }
+
+  void _handleAutoPauseToggle() {
+    final trackingNotifier = ref.read(activityTrackingProvider.notifier);
+    trackingNotifier.toggleAutoPause();
+    
+    if (mounted) {
+      final isEnabled = ref.read(activityTrackingProvider).isAutoPauseEnabled;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Auto-pause ${isEnabled ? "enabled" : "disabled"}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
     }
   }
 

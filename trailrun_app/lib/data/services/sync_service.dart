@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database.dart';
@@ -26,6 +27,7 @@ class SyncService {
   SyncQueueDao? _syncQueueDao;
   Timer? _syncTimer;
   bool _isSyncing = false;
+  DateTime? _lastSyncTime;
   
   final StreamController<SyncStatus> _syncStatusController = StreamController<SyncStatus>.broadcast();
   final StreamController<SyncConflict> _conflictController = StreamController<SyncConflict>.broadcast();
@@ -40,6 +42,9 @@ class SyncService {
   SyncStatus get currentStatus => _currentStatus;
   SyncStatus _currentStatus = SyncStatus.idle;
 
+  /// Last sync time
+  DateTime? get lastSyncTime => _lastSyncTime;
+
   /// Initialize sync service
   Future<void> initialize({
     required TrailRunDatabase database,
@@ -48,6 +53,13 @@ class SyncService {
   }) async {
     _database = database;
     _syncQueueDao = database.syncQueueDao;
+    
+    // Load last sync time
+    final prefs = await SharedPreferences.getInstance();
+    final lastSyncMillis = prefs.getInt('last_sync_time');
+    if (lastSyncMillis != null) {
+      _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSyncMillis);
+    }
     
     // Configure Dio
     _dio.options.baseUrl = baseUrl ?? 'https://api.trailrun.app';
@@ -102,6 +114,7 @@ class SyncService {
       
       if (pendingOperations.isEmpty) {
         _updateSyncStatus(SyncStatus.idle);
+        await _updateLastSyncTime();
         return;
       }
 
@@ -125,6 +138,10 @@ class SyncService {
 
         // Add small delay between operations to avoid overwhelming the server
         await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      if (failureCount == 0) {
+        await _updateLastSyncTime();
       }
 
       _updateSyncStatus(failureCount > 0 ? SyncStatus.error : SyncStatus.idle);
@@ -434,6 +451,14 @@ class SyncService {
   void _updateSyncStatus(SyncStatus status) {
     _currentStatus = status;
     _syncStatusController.add(status);
+  }
+
+  /// Update last sync time
+  Future<void> _updateLastSyncTime() async {
+    final now = DateTime.now();
+    _lastSyncTime = now;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_sync_time', now.millisecondsSinceEpoch);
   }
 
   /// Dispose resources

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'navigation/app_router.dart';
 import 'providers/providers.dart';
 
 class TrailRunApp extends ConsumerWidget {

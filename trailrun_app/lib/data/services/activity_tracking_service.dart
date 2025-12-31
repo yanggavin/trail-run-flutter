@@ -75,7 +75,7 @@ class ActivityTrackingService {
 
   final ActivityRepository _activityRepository;
   final LocationRepository _locationRepository;
-  final AutoPauseConfig _autoPauseConfig;
+  AutoPauseConfig _autoPauseConfig;
 
   // Stream controllers
   final StreamController<ActivityTrackingState> _stateController = 
@@ -116,6 +116,7 @@ class ActivityTrackingService {
   Activity? get currentActivity => _currentActivity;
   bool get isTracking => _state == ActivityTrackingState.active || _state == ActivityTrackingState.autoPaused;
   bool get isAutoPaused => _isAutoPaused;
+  bool get isAutoPauseEnabled => _autoPauseConfig.enabled;
 
   // Streams
   Stream<ActivityTrackingState> get stateStream => _stateController.stream;
@@ -267,8 +268,23 @@ class ActivityTrackingService {
 
   /// Configure auto-pause settings
   void configureAutoPause(AutoPauseConfig config) {
-    // Update configuration - this will take effect on next location update
-    // For now, we'll store it but full implementation would require updating the service
+    _autoPauseConfig = config;
+    // If disabled, ensure we resume if currently auto-paused
+    if (!config.enabled && _state == ActivityTrackingState.autoPaused) {
+      _triggerAutoResume();
+    }
+  }
+
+  /// Toggle auto-pause enabled state
+  bool toggleAutoPause() {
+    final newEnabled = !_autoPauseConfig.enabled;
+    configureAutoPause(AutoPauseConfig(
+      enabled: newEnabled,
+      speedThreshold: _autoPauseConfig.speedThreshold,
+      timeThreshold: _autoPauseConfig.timeThreshold,
+      resumeSpeedThreshold: _autoPauseConfig.resumeSpeedThreshold,
+    ));
+    return newEnabled;
   }
 
   /// Handle crash recovery - restore in-progress activity
