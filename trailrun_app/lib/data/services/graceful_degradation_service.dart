@@ -10,10 +10,10 @@ import 'camera_service.dart';
 /// or services are unavailable
 class GracefulDegradationService {
   GracefulDegradationService({
-    required this.permissionService,
+    PlatformPermissionService? permissionService,
     required this.locationService,
     required this.cameraService,
-  });
+  }) : permissionService = permissionService ?? PlatformPermissionService();
 
   final PlatformPermissionService permissionService;
   final LocationService locationService;
@@ -34,10 +34,10 @@ class GracefulDegradationService {
       capabilities.locationServiceEnabled = isLocationServiceEnabled;
       
       // Check camera capabilities
-      capabilities.canTakePhotos = await permissionService.hasCameraPermission();
+      capabilities.canTakePhotos = await PlatformPermissionService.hasCameraPermission();
       
       // Check storage capabilities
-      capabilities.canSaveData = await permissionService.hasStoragePermission();
+      capabilities.canSaveData = await PlatformPermissionService.hasStoragePermission();
       
       // Determine overall functionality level
       capabilities.functionalityLevel = _determineFunctionalityLevel(capabilities);

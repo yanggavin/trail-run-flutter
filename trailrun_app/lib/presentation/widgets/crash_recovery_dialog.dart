@@ -19,8 +19,8 @@ class CrashRecoveryDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = Duration(seconds: activity.duration.inSeconds);
-    final distance = activity.distanceMeters / 1000; // Convert to km
+    final duration = activity.duration ?? Duration.zero;
+    final distance = activity.distance.kilometers;
 
     return AlertDialog(
       icon: const Icon(
@@ -81,7 +81,7 @@ class CrashRecoveryDialog extends StatelessWidget {
                     const Icon(Icons.access_time, size: 16, color: Colors.grey),
                     const SizedBox(width: 4),
                     Text(
-                      'Started ${_formatTime(activity.startTime)}',
+                      'Started ${_formatTime(activity.startTime.dateTime)}',
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ],
@@ -159,8 +159,8 @@ class CrashRecoveryDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildDetailRow('Title', activity.title.isNotEmpty ? activity.title : 'Untitled Run'),
-            _buildDetailRow('Distance', '${(activity.distanceMeters / 1000).toStringAsFixed(2)} km'),
-            _buildDetailRow('Duration', _formatDuration(Duration(seconds: activity.duration.inSeconds))),
+            _buildDetailRow('Distance', '${activity.distance.kilometers.toStringAsFixed(2)} km'),
+            _buildDetailRow('Duration', _formatDuration(activity.duration ?? Duration.zero)),
             _buildDetailRow('Started', activity.startTime.toString()),
             if (activity.trackPoints.isNotEmpty)
               _buildDetailRow('GPS Points', '${activity.trackPoints.length}'),

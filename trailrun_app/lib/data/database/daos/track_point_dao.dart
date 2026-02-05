@@ -74,6 +74,14 @@ class TrackPointDao extends DatabaseAccessor<TrailRunDatabase> with _$TrackPoint
     return result.read(trackPointsTable.id.count()) ?? 0;
   }
 
+  /// Get total track points count (all activities)
+  Future<int> getTotalTrackPointsCount() async {
+    final query = selectOnly(trackPointsTable)
+      ..addColumns([trackPointsTable.id.count()]);
+    final result = await query.getSingle();
+    return result.read(trackPointsTable.id.count()) ?? 0;
+  }
+
   /// Get track points with accuracy better than threshold
   Future<List<TrackPointEntity>> getAccurateTrackPoints({
     required String activityId,

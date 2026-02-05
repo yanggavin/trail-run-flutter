@@ -24,10 +24,11 @@ void main() {
       return ProviderScope(
         overrides: [
           privacySettingsProvider.overrideWith((ref) {
-            return TestPrivacySettingsNotifier(
-              initialSettings ?? const PrivacySettings(
+            return PrivacySettingsNotifier(
+              initialSettings: initialSettings ?? const PrivacySettings(
                 privacyLevel: PrivacyLevel.private,
               ),
+              loadFromDisk: false,
             );
           }),
           privacyServiceProvider.overrideWithValue(mockPrivacyService),
@@ -164,7 +165,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check that export dialog is shown
-      expect(find.text('Export Data'), findsAtLeastNWidget(2)); // Title appears twice
+      expect(find.text('Export Data'), findsAtLeastNWidgets(2)); // Title appears twice
       expect(find.text('Data Only'), findsOneWidget);
       expect(find.text('Data + Photos'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
@@ -178,7 +179,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check that delete confirmation dialog is shown
-      expect(find.text('Delete All Data'), findsAtLeastNWidget(2)); // Title appears twice
+      expect(find.text('Delete All Data'), findsAtLeastNWidgets(2)); // Title appears twice
       expect(find.text('This will permanently delete'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.text('Delete All'), findsOneWidget);
@@ -299,50 +300,4 @@ void main() {
       verify(mockPrivacyService.deleteAllUserData()).called(1);
     });
   });
-}
-
-/// Test implementation of PrivacySettingsNotifier for testing
-class TestPrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
-  TestPrivacySettingsNotifier(PrivacySettings initialState) : super(initialState);
-
-  @override
-  Future<void> updatePrivacyLevel(PrivacyLevel privacyLevel) async {
-    state = state.copyWith(privacyLevel: privacyLevel);
-  }
-
-  @override
-  Future<void> updateStripExifData(bool stripExifData) async {
-    state = state.copyWith(stripExifData: stripExifData);
-  }
-
-  @override
-  Future<void> updateShareLocation(bool shareLocation) async {
-    state = state.copyWith(shareLocation: shareLocation);
-  }
-
-  @override
-  Future<void> updateSharePhotos(bool sharePhotos) async {
-    state = state.copyWith(sharePhotos: sharePhotos);
-  }
-
-  @override
-  Future<void> updateShareStats(bool shareStats) async {
-    state = state.copyWith(shareStats: shareStats);
-  }
-
-  @override
-  Future<void> resetToDefaults() async {
-    state = const PrivacySettings(
-      privacyLevel: PrivacyLevel.private,
-      stripExifData: true,
-      shareLocation: false,
-      sharePhotos: true,
-      shareStats: true,
-    );
-  }
-
-  @override
-  Future<void> updateSettings(PrivacySettings settings) async {
-    state = settings;
-  }
 }

@@ -15,10 +15,7 @@ export 'loading_provider.dart';
 // Resource management
 export 'resource_provider.dart';
 
-// Service providers from data layer
-export '../../data/services/location_service_provider.dart';
-export '../../data/services/activity_tracking_provider.dart';
-export '../../data/services/photo_provider.dart';
+// Service providers from data layer (avoid conflicts)
 export '../../data/services/privacy_settings_provider.dart';
 export '../../data/services/share_export_provider.dart';
 export '../../data/services/offline_data_provider.dart';

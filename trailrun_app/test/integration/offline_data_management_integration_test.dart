@@ -1,8 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as path;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:drift/native.dart';
 
 import '../../lib/data/database/database.dart';
 import '../../lib/data/services/sync_service.dart';
@@ -10,26 +9,19 @@ import '../../lib/data/services/local_first_data_manager.dart';
 import '../../lib/data/services/network_connectivity_service.dart';
 import '../../lib/domain/models/models.dart';
 import '../../lib/domain/enums/enums.dart';
+import '../../lib/domain/value_objects/coordinates.dart';
+import '../../lib/domain/value_objects/measurement_units.dart';
+import '../../lib/domain/value_objects/timestamp.dart';
 
 void main() {
   group('Offline Data Management Integration', () {
     late TrailRunDatabase database;
     late SyncService syncService;
     late LocalFirstDataManager dataManager;
-    late String tempDir;
-
-    setUpAll(() {
-      // Initialize FFI for testing
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    });
 
     setUp(() async {
-      // Create temporary directory for test database
-      tempDir = Directory.systemTemp.createTempSync('trailrun_test_').path;
-      
-      // Initialize database
-      database = TrailRunDatabase.forTesting(path.join(tempDir, 'test.db'));
+      // Initialize in-memory database
+      database = TrailRunDatabase.withExecutor(NativeDatabase.memory());
       
       // Initialize sync service
       syncService = SyncService();
@@ -46,13 +38,6 @@ void main() {
     tearDown(() async {
       await database.close();
       syncService.dispose();
-      
-      // Clean up temporary directory
-      try {
-        Directory(tempDir).deleteSync(recursive: true);
-      } catch (e) {
-        // Ignore cleanup errors
-      }
     });
 
     group('local-first operations', () {
@@ -104,10 +89,14 @@ void main() {
         final trackPoints = List.generate(10, (index) => TrackPoint(
           id: 'trackpoint-$index',
           activityId: 'test-activity',
-          timestamp: DateTime.now().add(Duration(seconds: index)),
-          latitude: 37.7749 + (index * 0.001),
-          longitude: -122.4194 + (index * 0.001),
-          elevation: 100.0 + index,
+          timestamp: Timestamp.fromMilliseconds(
+            DateTime.now().add(Duration(seconds: index)).millisecondsSinceEpoch,
+          ),
+          coordinates: Coordinates(
+            latitude: 37.7749 + (index * 0.001),
+            longitude: -122.4194 + (index * 0.001),
+            elevation: 100.0 + index,
+          ),
           accuracy: 5.0,
           source: LocationSource.gps,
           sequence: index,
@@ -262,12 +251,12 @@ void main() {
 Activity createTestActivity() {
   return Activity(
     id: 'test-activity-${DateTime.now().millisecondsSinceEpoch}',
-    startTime: DateTime.now(),
+    startTime: Timestamp.fromMilliseconds(DateTime.now().millisecondsSinceEpoch),
     endTime: null,
-    distanceMeters: 1000.0,
-    duration: const Duration(minutes: 10),
-    elevationGainMeters: 50.0,
-    averagePaceSecondsPerKm: 360.0,
+    distance: Distance.meters(1000.0),
+    elevationGain: Elevation.meters(50.0),
+    elevationLoss: Elevation.meters(0),
+    averagePace: Pace.secondsPerKilometer(360.0),
     title: 'Test Activity',
     notes: null,
     privacy: PrivacyLevel.private,
@@ -283,9 +272,11 @@ Photo createTestPhoto() {
   return Photo(
     id: 'test-photo-${DateTime.now().millisecondsSinceEpoch}',
     activityId: 'test-activity',
-    timestamp: DateTime.now(),
-    latitude: 37.7749,
-    longitude: -122.4194,
+    timestamp: Timestamp.fromMilliseconds(DateTime.now().millisecondsSinceEpoch),
+    coordinates: const Coordinates(
+      latitude: 37.7749,
+      longitude: -122.4194,
+    ),
     filePath: '/path/to/photo.jpg',
     thumbnailPath: '/path/to/thumbnail.jpg',
     hasExifData: true,
@@ -298,10 +289,12 @@ TrackPoint createTestTrackPoint() {
   return TrackPoint(
     id: 'test-trackpoint-${DateTime.now().millisecondsSinceEpoch}',
     activityId: 'test-activity',
-    timestamp: DateTime.now(),
-    latitude: 37.7749,
-    longitude: -122.4194,
-    elevation: 100.0,
+    timestamp: Timestamp.fromMilliseconds(DateTime.now().millisecondsSinceEpoch),
+    coordinates: const Coordinates(
+      latitude: 37.7749,
+      longitude: -122.4194,
+      elevation: 100.0,
+    ),
     accuracy: 5.0,
     source: LocationSource.gps,
     sequence: 1,

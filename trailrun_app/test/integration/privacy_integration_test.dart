@@ -13,6 +13,7 @@ import '../../lib/domain/models/split.dart';
 import '../../lib/domain/enums/privacy_level.dart';
 import '../../lib/domain/enums/location_source.dart';
 import '../../lib/domain/value_objects/coordinates.dart';
+import '../../lib/domain/value_objects/measurement_units.dart';
 import '../../lib/domain/value_objects/timestamp.dart';
 
 void main() {
@@ -40,17 +41,24 @@ void main() {
     group('End-to-End Privacy Workflow', () {
       test('should create activity, apply privacy settings, and export data', () async {
         // Create test activity with photos
+        final startTime = Timestamp.fromMilliseconds(
+          DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch,
+        );
+        final endTime = Timestamp.fromMilliseconds(
+          DateTime.now().subtract(const Duration(hours: 1)).millisecondsSinceEpoch,
+        );
+
         final activity = Activity(
           id: 'test-activity-1',
-          startTime: DateTime.now().subtract(const Duration(hours: 2)),
-          endTime: DateTime.now().subtract(const Duration(hours: 1)),
-          distanceMeters: 5000,
-          duration: const Duration(hours: 1),
-          elevationGainMeters: 100,
-          averagePaceSecondsPerKm: 300,
+          startTime: startTime,
+          endTime: endTime,
+          distance: Distance.meters(5000),
+          elevationGain: Elevation.meters(100),
+          elevationLoss: Elevation.meters(0),
+          averagePace: Pace.secondsPerKilometer(300),
           title: 'Test Trail Run',
           notes: 'Beautiful trail with great views',
-          privacyLevel: PrivacyLevel.public,
+          privacy: PrivacyLevel.public,
           coverPhotoId: null,
           trackPoints: [],
           photos: [],
@@ -58,7 +66,9 @@ void main() {
         );
 
         // Insert activity into database
-        await database.activityDao.insertActivity(activity);
+        await database.activityDao.createActivity(
+          database.activityDao.toEntity(activity),
+        );
 
         // Create test track points
         final trackPoints = List.generate(10, (index) {
@@ -80,7 +90,9 @@ void main() {
         });
 
         for (final trackPoint in trackPoints) {
-          await database.trackPointDao.insertTrackPoint(trackPoint);
+          await database.trackPointDao.createTrackPoint(
+            database.trackPointDao.toEntity(trackPoint),
+          );
         }
 
         // Create test photos with files
@@ -114,25 +126,32 @@ void main() {
           );
 
           photos.add(photo);
-          await database.photoDao.insertPhoto(photo);
+          await database.photoDao.createPhoto(
+            database.photoDao.toEntity(photo),
+          );
         }
 
         // Create test splits
         final splits = List.generate(5, (index) {
+          final splitStart = activity.startTime.add(Duration(minutes: 5 * index));
+          final splitEnd = splitStart.add(const Duration(minutes: 5));
           return Split(
             id: 'split-$index',
             activityId: activity.id,
             splitNumber: index + 1,
-            distanceMeters: 1000,
-            duration: const Duration(minutes: 5),
-            paceSecondsPerKm: 300,
-            elevationGainMeters: 20,
-            elevationLossMeters: 10,
+            startTime: splitStart,
+            endTime: splitEnd,
+            distance: Distance.meters(1000),
+            pace: Pace.secondsPerKilometer(300),
+            elevationGain: Elevation.meters(20),
+            elevationLoss: Elevation.meters(10),
           );
         });
 
         for (final split in splits) {
-          await database.splitDao.insertSplit(split);
+          await database.splitDao.createSplit(
+            database.splitDao.toEntity(split),
+          );
         }
 
         // Apply privacy settings
@@ -147,8 +166,13 @@ void main() {
         await privacyService.applyPrivacySettings(activity.id, privacySettings);
 
         // Verify privacy settings were applied
-        final updatedActivity = await database.activityDao.getActivity(activity.id);
-        expect(updatedActivity?.privacyLevel, equals(PrivacyLevel.private));
+        final updatedActivity = await database.activityDao.getActivityById(activity.id);
+        expect(
+          updatedActivity != null
+              ? PrivacyLevel.values[updatedActivity.privacyLevel]
+              : null,
+          equals(PrivacyLevel.private),
+        );
 
         // Verify EXIF data was stripped from photos
         for (final photo in photos) {
@@ -213,24 +237,32 @@ void main() {
 
       test('should delete specific activity data completely', () async {
         // Create test activity with all related data
+        final deleteStartTime = Timestamp.fromMilliseconds(
+          DateTime.now().subtract(const Duration(hours: 1)).millisecondsSinceEpoch,
+        );
+        final deleteEndTime = Timestamp.fromMilliseconds(
+          DateTime.now().millisecondsSinceEpoch,
+        );
         final activity = Activity(
           id: 'delete-test-activity',
-          startTime: DateTime.now().subtract(const Duration(hours: 1)),
-          endTime: DateTime.now(),
-          distanceMeters: 3000,
-          duration: const Duration(hours: 1),
-          elevationGainMeters: 50,
-          averagePaceSecondsPerKm: 360,
+          startTime: deleteStartTime,
+          endTime: deleteEndTime,
+          distance: Distance.meters(3000),
+          elevationGain: Elevation.meters(50),
+          elevationLoss: Elevation.meters(0),
+          averagePace: Pace.secondsPerKilometer(360),
           title: 'Activity to Delete',
           notes: 'This will be deleted',
-          privacyLevel: PrivacyLevel.private,
+          privacy: PrivacyLevel.private,
           coverPhotoId: null,
           trackPoints: [],
           photos: [],
           splits: [],
         );
 
-        await database.activityDao.insertActivity(activity);
+        await database.activityDao.createActivity(
+          database.activityDao.toEntity(activity),
+        );
 
         // Add track points
         final trackPoint = TrackPoint(
@@ -242,7 +274,9 @@ void main() {
           source: LocationSource.gps,
           sequence: 1,
         );
-        await database.trackPointDao.insertTrackPoint(trackPoint);
+        await database.trackPointDao.createTrackPoint(
+          database.trackPointDao.toEntity(trackPoint),
+        );
 
         // Add photo with file
         final photoPath = path.join(tempDir.path, 'delete_test_photo.jpg');
@@ -262,23 +296,28 @@ void main() {
           hasExifData: false,
           curationScore: 0.5,
         );
-        await database.photoDao.insertPhoto(photo);
+        await database.photoDao.createPhoto(
+          database.photoDao.toEntity(photo),
+        );
 
         // Add split
         final split = Split(
           id: 'split-delete-test',
           activityId: activity.id,
           splitNumber: 1,
-          distanceMeters: 1000,
-          duration: const Duration(minutes: 6),
-          paceSecondsPerKm: 360,
-          elevationGainMeters: 10,
-          elevationLossMeters: 5,
+          startTime: activity.startTime,
+          endTime: activity.startTime.add(const Duration(minutes: 6)),
+          distance: Distance.meters(1000),
+          pace: Pace.secondsPerKilometer(360),
+          elevationGain: Elevation.meters(10),
+          elevationLoss: Elevation.meters(5),
         );
-        await database.splitDao.insertSplit(split);
+        await database.splitDao.createSplit(
+          database.splitDao.toEntity(split),
+        );
 
         // Verify data exists before deletion
-        expect(await database.activityDao.getActivity(activity.id), isNotNull);
+        expect(await database.activityDao.getActivityById(activity.id), isNotNull);
         expect(await database.trackPointDao.getTrackPointsForActivity(activity.id), hasLength(1));
         expect(await database.photoDao.getPhotosForActivity(activity.id), hasLength(1));
         expect(await database.splitDao.getSplitsForActivity(activity.id), hasLength(1));
@@ -288,7 +327,7 @@ void main() {
         await privacyService.deleteActivityData(activity.id);
 
         // Verify all data was deleted
-        expect(await database.activityDao.getActivity(activity.id), isNull);
+        expect(await database.activityDao.getActivityById(activity.id), isNull);
         expect(await database.trackPointDao.getTrackPointsForActivity(activity.id), isEmpty);
         expect(await database.photoDao.getPhotosForActivity(activity.id), isEmpty);
         expect(await database.splitDao.getSplitsForActivity(activity.id), isEmpty);
@@ -298,17 +337,24 @@ void main() {
       test('should delete all user data completely', () async {
         // Create multiple activities with data
         final activities = List.generate(3, (index) {
+          final startTime = Timestamp.fromMilliseconds(
+            DateTime.now().subtract(Duration(hours: index + 1)).millisecondsSinceEpoch,
+          );
+          final endTime = Timestamp.fromMilliseconds(
+            DateTime.now().subtract(Duration(hours: index)).millisecondsSinceEpoch,
+          );
+
           return Activity(
             id: 'activity-$index',
-            startTime: DateTime.now().subtract(Duration(hours: index + 1)),
-            endTime: DateTime.now().subtract(Duration(hours: index)),
-            distanceMeters: (index + 1) * 1000.0,
-            duration: Duration(hours: index + 1),
-            elevationGainMeters: (index + 1) * 50.0,
-            averagePaceSecondsPerKm: 300.0,
+            startTime: startTime,
+            endTime: endTime,
+            distance: Distance.meters((index + 1) * 1000.0),
+            elevationGain: Elevation.meters((index + 1) * 50.0),
+            elevationLoss: Elevation.meters(0),
+            averagePace: Pace.secondsPerKilometer(300.0),
             title: 'Activity $index',
             notes: 'Notes for activity $index',
-            privacyLevel: PrivacyLevel.private,
+            privacy: PrivacyLevel.private,
             coverPhotoId: null,
             trackPoints: [],
             photos: [],
@@ -318,7 +364,9 @@ void main() {
 
         // Insert activities and related data
         for (final activity in activities) {
-          await database.activityDao.insertActivity(activity);
+          await database.activityDao.createActivity(
+            database.activityDao.toEntity(activity),
+          );
 
           // Add track point
           final trackPoint = TrackPoint(
@@ -330,7 +378,9 @@ void main() {
             source: LocationSource.gps,
             sequence: 1,
           );
-          await database.trackPointDao.insertTrackPoint(trackPoint);
+          await database.trackPointDao.createTrackPoint(
+            database.trackPointDao.toEntity(trackPoint),
+          );
 
           // Add photo with file
           final photoPath = path.join(tempDir.path, 'photo_${activity.id}.jpg');
@@ -350,16 +400,18 @@ void main() {
             hasExifData: false,
             curationScore: 0.5,
           );
-          await database.photoDao.insertPhoto(photo);
+          await database.photoDao.createPhoto(
+            database.photoDao.toEntity(photo),
+          );
         }
 
         // Verify data exists
         final allActivities = await database.activityDao.getAllActivities();
-        final allTrackPoints = await database.trackPointDao.getAllTrackPoints();
+        final allTrackPointsCount = await database.trackPointDao.getTotalTrackPointsCount();
         final allPhotos = await database.photoDao.getAllPhotos();
 
         expect(allActivities, hasLength(3));
-        expect(allTrackPoints, hasLength(3));
+        expect(allTrackPointsCount, equals(3));
         expect(allPhotos, hasLength(3));
 
         // Delete all user data
@@ -367,11 +419,11 @@ void main() {
 
         // Verify all data was deleted
         final remainingActivities = await database.activityDao.getAllActivities();
-        final remainingTrackPoints = await database.trackPointDao.getAllTrackPoints();
+        final remainingTrackPointsCount = await database.trackPointDao.getTotalTrackPointsCount();
         final remainingPhotos = await database.photoDao.getAllPhotos();
 
         expect(remainingActivities, isEmpty);
-        expect(remainingTrackPoints, isEmpty);
+        expect(remainingTrackPointsCount, equals(0));
         expect(remainingPhotos, isEmpty);
 
         // Verify photo files were deleted

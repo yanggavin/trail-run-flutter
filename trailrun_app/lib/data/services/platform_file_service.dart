@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
@@ -210,14 +212,28 @@ class PlatformFileService {
     Rect? sharePositionOrigin,
   }) async {
     try {
-      return await Share.share(
+      await Share.share(
         text,
         subject: subject,
         sharePositionOrigin: sharePositionOrigin,
       );
+      return const ShareResult(
+        'dev.fluttercommunity.plus/share/unavailable',
+        ShareResultStatus.unavailable,
+      );
     } catch (e) {
       return ShareResult('', ShareResultStatus.unavailable);
     }
+  }
+
+  /// Check if native share sheets are supported on this platform
+  static bool canUseNativeShare() {
+    if (kIsWeb) return false;
+    return Platform.isAndroid ||
+        Platform.isIOS ||
+        Platform.isMacOS ||
+        Platform.isWindows ||
+        Platform.isLinux;
   }
 
   /// Create a temporary file for sharing

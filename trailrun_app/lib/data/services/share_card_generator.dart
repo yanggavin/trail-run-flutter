@@ -308,11 +308,11 @@ class ShareCardGenerator {
           alignment: Alignment.center,
           child: repaintBoundary,
         ),
-        configuration: const ViewConfiguration(
-          size: Size(_cardWidth, _cardHeight),
+        configuration: ViewConfiguration(
+          logicalConstraints: BoxConstraints.tight(const Size(_cardWidth, _cardHeight)),
           devicePixelRatio: 1.0,
         ),
-        window: WidgetsBinding.instance.window,
+        view: ui.window,
       );
 
       // Build the widget tree

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -111,7 +112,7 @@ void main() {
       expect(exportDir.existsSync(), true);
 
       // Test file operations
-      const testData = [1, 2, 3, 4, 5];
+      final testData = Uint8List.fromList([1, 2, 3, 4, 5]);
       final file = await PlatformFileService.saveFile(
         fileName: 'test.txt',
         data: testData,
@@ -121,7 +122,8 @@ void main() {
       expect(file.existsSync(), true);
 
       final readData = await PlatformFileService.readFile(file.path);
-      expect(readData, testData);
+      expect(readData, isNotNull);
+      expect(readData, equals(testData));
 
       final fileSize = await PlatformFileService.getFileSize(file.path);
       expect(fileSize, testData.length);
@@ -236,7 +238,7 @@ void main() {
 
     testWidgets('File sharing operations work correctly', (tester) async {
       // Test file sharing capabilities
-      final canShare = await PlatformFileService.canUseNativeShare();
+      final canShare = PlatformFileService.canUseNativeShare();
       expect(canShare, isA<bool>());
 
       // Test MIME type detection

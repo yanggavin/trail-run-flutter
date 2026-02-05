@@ -1,10 +1,9 @@
-import 'dart:io';
-
 import '../../domain/models/photo.dart';
+import '../../domain/enums/sync_state.dart';
 import '../../domain/repositories/photo_repository.dart';
-import '../database/database.dart';
 import '../database/daos/photo_dao.dart';
 import '../services/photo_service.dart';
+import 'package:uuid/uuid.dart';
 
 /// Implementation of PhotoRepository using local database and file storage
 class PhotoRepositoryImpl implements PhotoRepository {
@@ -132,8 +131,13 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<String> savePhotoFile(String activityId, List<int> imageBytes, String extension) async {
     try {
-      // This is handled by PhotoService.capturePhoto, but we can provide a generic implementation
-      throw UnimplementedError('Use PhotoService.capturePhoto for photo capture');
+      final photoId = const Uuid().v4();
+      return await PhotoService.savePhotoFile(
+        activityId: activityId,
+        photoId: photoId,
+        imageBytes: imageBytes,
+        extension: extension,
+      );
     } catch (e) {
       throw PhotoRepositoryException('Failed to save photo file: $e');
     }
@@ -142,8 +146,11 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<String> generateThumbnail(String photoPath, {int maxWidth = 300, int maxHeight = 300}) async {
     try {
-      // This is handled internally by PhotoService
-      throw UnimplementedError('Thumbnail generation is handled by PhotoService');
+      return await PhotoService.generateThumbnail(
+        photoPath,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+      );
     } catch (e) {
       throw PhotoRepositoryException('Failed to generate thumbnail: $e');
     }
@@ -180,8 +187,9 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<List<Photo>> getPhotosNeedingSync() async {
     try {
-      // For now, return empty list - sync functionality will be implemented later
-      return [];
+      final entities = await photoDao.getAllPhotos();
+      final photos = entities.map(photoDao.fromEntity).toList();
+      return photos.where((photo) => !photo.syncState.isSynced).toList();
     } catch (e) {
       throw PhotoRepositoryException('Failed to get photos needing sync: $e');
     }
@@ -190,7 +198,11 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<void> markPhotoSynced(String photoId) async {
     try {
-      // Sync functionality will be implemented later
+      final entity = await photoDao.getPhotoById(photoId);
+      if (entity == null) {
+        throw PhotoRepositoryException('Photo not found: $photoId');
+      }
+      await photoDao.updatePhotoSyncState(photoId, SyncState.synced);
     } catch (e) {
       throw PhotoRepositoryException('Failed to mark photo as synced: $e');
     }
@@ -199,7 +211,11 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<void> markPhotoSyncFailed(String photoId, String error) async {
     try {
-      // Sync functionality will be implemented later
+      final entity = await photoDao.getPhotoById(photoId);
+      if (entity == null) {
+        throw PhotoRepositoryException('Photo not found: $photoId');
+      }
+      await photoDao.updatePhotoSyncState(photoId, SyncState.failed);
     } catch (e) {
       throw PhotoRepositoryException('Failed to mark photo sync as failed: $e');
     }
@@ -235,10 +251,8 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<PhotoStorageStats> getStorageStats() async {
     try {
-      // Get all photos from database
-      final allPhotos = <Photo>[];
-      // This would need to be implemented with a query to get all photos
-      // For now, return basic stats
+      final entities = await photoDao.getAllPhotos();
+      final allPhotos = entities.map(photoDao.fromEntity).toList();
       
       int totalSizeBytes = 0;
       int thumbnailCount = 0;
@@ -270,9 +284,8 @@ class PhotoRepositoryImpl implements PhotoRepository {
   @override
   Future<int> cleanupOrphanedFiles() async {
     try {
-      // Get all valid file paths from database
-      // This would need a query to get all photo file paths
-      final validPaths = <String>[];
+      final entities = await photoDao.getAllPhotos();
+      final validPaths = entities.map((e) => e.filePath).toList();
       return await PhotoService.cleanupOrphanedFiles(validPaths);
     } catch (e) {
       throw PhotoRepositoryException('Failed to cleanup orphaned files: $e');

@@ -2,14 +2,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:trailrun_app/presentation/app.dart';
-import 'package:trailrun_app/presentation/providers/providers.dart';
+import 'package:trailrun_app/data/services/auto_pause_settings_service.dart';
+import 'package:trailrun_app/data/services/activity_tracking_provider.dart' as tracking_provider;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final autoPauseSettings = await AutoPauseSettingsService.load();
+  tracking_provider.ActivityTrackingProvider.configureAutoPause(
+    enabled: autoPauseSettings.enabled,
+    speedThreshold: autoPauseSettings.speedThreshold,
+    timeThreshold: autoPauseSettings.timeThreshold,
+    resumeSpeedThreshold: autoPauseSettings.resumeSpeedThreshold,
+  );
   
   // Create provider container with observers
   final container = ProviderContainer(
-    observers: [AppProviderObserver()],
+    observers: [if (kDebugMode) AppProviderObserver()],
   );
 
   // Handle app lifecycle for resource cleanup
@@ -47,17 +56,6 @@ class AppProviderObserver extends ProviderObserver {
   ) {
     // Log provider errors
     print('Provider ${provider.name ?? provider.runtimeType} failed: $error');
-    
-    // Report error to error provider if available
-    try {
-      final errorNotifier = container.read(errorProvider.notifier);
-      errorNotifier.showErrorMessage(
-        'Provider error: ${error.toString()}',
-        type: ErrorType.general,
-      );
-    } catch (e) {
-      // Ignore if error provider is not available
-    }
   }
 }
 
@@ -82,54 +80,31 @@ class AppLifecycleObserver extends WidgetsBindingObserver {
         _handleAppDetached();
         break;
       case AppLifecycleState.inactive:
-        // Handle inactive state if needed
-        break;
       case AppLifecycleState.hidden:
-        // Handle hidden state if needed
+        // Handle inactive/hidden state if needed
         break;
     }
   }
 
   void _handleAppPaused() {
     // App is going to background
-    // Pause non-essential services but keep tracking active
-    try {
-      // Dispose camera resources
-      final resourceNotifier = container.read(resourceProvider.notifier);
-      resourceNotifier.disposeResourcesByType(ResourceType.cameraController);
-    } catch (e) {
-      print('Error handling app pause: $e');
+    if (kDebugMode) {
+      print('App paused - disposing camera resources');
     }
   }
 
   void _handleAppResumed() {
     // App is coming back to foreground
-    // Resume services and refresh state
-    try {
-      // Refresh location state
-      final locationNotifier = container.read(locationProvider.notifier);
-      // Location service should automatically resume
-      
-      // Refresh activity state if tracking
-      final trackingState = container.read(activityTrackingProvider);
-      if (trackingState.isTracking) {
-        // Activity tracking should continue automatically
-      }
-    } catch (e) {
-      print('Error handling app resume: $e');
+    if (kDebugMode) {
+      print('App resumed');
     }
   }
 
   void _handleAppDetached() {
     // App is being terminated
-    // Clean up all resources
-    try {
-      final resourceNotifier = container.read(resourceProvider.notifier);
-      resourceNotifier.disposeAllResources();
-    } catch (e) {
-      print('Error handling app detached: $e');
-    } finally {
-      container.dispose();
+    if (kDebugMode) {
+      print('App detached - cleaning up resources');
     }
+    container.dispose();
   }
 }

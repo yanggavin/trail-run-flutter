@@ -1,3 +1,4 @@
+import '../enums/sync_state.dart';
 import '../value_objects/coordinates.dart';
 import '../value_objects/timestamp.dart';
 
@@ -13,6 +14,7 @@ class Photo {
     this.hasExifData = false,
     this.curationScore = 0.0,
     this.caption,
+    this.syncState = SyncState.local,
   });
 
   /// Unique identifier for this photo
@@ -42,6 +44,9 @@ class Photo {
   /// Optional user-provided caption
   final String? caption;
 
+  /// Current synchronization state
+  final SyncState syncState;
+
   /// Check if photo has location data
   bool get hasLocation => coordinates != null;
 
@@ -69,6 +74,7 @@ class Photo {
     bool? hasExifData,
     double? curationScore,
     String? caption,
+    SyncState? syncState,
   }) {
     return Photo(
       id: id ?? this.id,
@@ -80,6 +86,7 @@ class Photo {
       hasExifData: hasExifData ?? this.hasExifData,
       curationScore: curationScore ?? this.curationScore,
       caption: caption ?? this.caption,
+      syncState: syncState ?? this.syncState,
     );
   }
 
@@ -96,7 +103,8 @@ class Photo {
           thumbnailPath == other.thumbnailPath &&
           hasExifData == other.hasExifData &&
           curationScore == other.curationScore &&
-          caption == other.caption;
+          caption == other.caption &&
+          syncState == other.syncState;
 
   @override
   int get hashCode => Object.hash(
@@ -109,8 +117,9 @@ class Photo {
         hasExifData,
         curationScore,
         caption,
+        syncState,
       );
 
   @override
-  String toString() => 'Photo(id: $id, timestamp: $timestamp, hasLocation: $hasLocation)';
+  String toString() => 'Photo(id: $id, timestamp: $timestamp, hasLocation: $hasLocation, syncState: $syncState)';
 }

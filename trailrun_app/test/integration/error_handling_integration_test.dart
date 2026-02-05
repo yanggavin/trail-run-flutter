@@ -5,24 +5,26 @@ import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../lib/domain/errors/app_errors.dart';
-import '../../lib/data/services/error_handler.dart';
+import '../../lib/domain/errors/app_errors.dart' as domain_errors;
+import '../../lib/data/services/error_handler.dart' as service_error;
 import '../../lib/data/services/crash_recovery_service.dart';
 import '../../lib/data/services/graceful_degradation_service.dart';
 import '../../lib/presentation/widgets/error_dialog.dart';
 import '../../lib/presentation/widgets/crash_recovery_dialog.dart';
 import '../../lib/presentation/widgets/gps_diagnostics_widget.dart';
 import '../../lib/presentation/widgets/permission_degradation_widget.dart';
-import '../../lib/presentation/providers/error_provider.dart';
+import '../../lib/presentation/providers/error_provider.dart' as error_provider;
 import '../../lib/data/services/platform_permission_service.dart';
-import '../../lib/data/services/location_service.dart';
+import '../../lib/data/services/location_service.dart' as location_service;
 import '../../lib/data/services/camera_service.dart';
 import '../../lib/data/services/gps_diagnostics_service.dart';
 import '../../lib/domain/models/activity.dart';
+import '../../lib/domain/value_objects/measurement_units.dart';
+import '../../lib/domain/value_objects/timestamp.dart';
 
 @GenerateMocks([
   PlatformPermissionService,
-  LocationService,
+  location_service.LocationService,
   CameraService,
   GpsDiagnosticsService,
   CrashRecoveryService,
@@ -50,12 +52,12 @@ void main() {
 
     group('Error Dialog Integration', () {
       testWidgets('displays location error with recovery actions', (tester) async {
-        final locationError = LocationError(
-          type: LocationErrorType.permissionDenied,
+        final locationError = domain_errors.LocationError(
+          type: domain_errors.LocationErrorType.permissionDenied,
           message: 'Location permission denied',
           userMessage: 'Location permission is required to track your runs.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Grant Permission',
               description: 'Allow location access in app settings',
               action: () async {},
@@ -89,12 +91,12 @@ void main() {
       });
 
       testWidgets('displays camera error with recovery actions', (tester) async {
-        final cameraError = CameraError(
-          type: CameraErrorType.permissionDenied,
+        final cameraError = domain_errors.CameraError(
+          type: domain_errors.CameraErrorType.permissionDenied,
           message: 'Camera permission denied',
           userMessage: 'Camera permission is required to take photos during runs.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Grant Permission',
               description: 'Allow camera access in app settings',
               action: () async {},
@@ -124,12 +126,12 @@ void main() {
       });
 
       testWidgets('displays storage error with destructive recovery action', (tester) async {
-        final storageError = StorageError(
-          type: StorageErrorType.diskFull,
+        final storageError = domain_errors.StorageError(
+          type: domain_errors.StorageErrorType.diskFull,
           message: 'Insufficient storage space',
           userMessage: 'Your device is running low on storage space.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Delete Old Activities',
               description: 'Remove old TrailRun activities to save space',
               action: () async {},
@@ -162,12 +164,18 @@ void main() {
 
     group('Crash Recovery Dialog Integration', () {
       testWidgets('displays crash recovery dialog with activity details', (tester) async {
+        final activityStart = Timestamp.fromMilliseconds(
+          DateTime.now().subtract(const Duration(minutes: 30)).millisecondsSinceEpoch,
+        );
+        final activityEnd = activityStart.add(const Duration(minutes: 25));
         final activity = Activity(
           id: 'test-activity-id',
           title: 'Morning Run',
-          startTime: DateTime.now().subtract(const Duration(minutes: 30)),
-          distanceMeters: 2500,
-          duration: const Duration(minutes: 25),
+          startTime: activityStart,
+          endTime: activityEnd,
+          distance: Distance.meters(2500),
+          elevationGain: Elevation.meters(0),
+          elevationLoss: Elevation.meters(0),
           trackPoints: [],
           photos: [],
           splits: [],
@@ -406,8 +414,8 @@ void main() {
             child: MaterialApp(
               home: Consumer(
                 builder: (context, ref, child) {
-                  final errorState = ref.watch(errorProvider);
-                  final errorNotifier = ref.read(errorProvider.notifier);
+                  final errorState = ref.watch(error_provider.errorProvider);
+                  final errorNotifier = ref.read(error_provider.errorProvider.notifier);
 
                   return Scaffold(
                     body: Column(
@@ -416,8 +424,8 @@ void main() {
                         Text('Error Count: ${errorState.structuredErrorHistory.length}'),
                         ElevatedButton(
                           onPressed: () {
-                            final error = LocationError(
-                              type: LocationErrorType.permissionDenied,
+                            final error = domain_errors.LocationError(
+                              type: domain_errors.LocationErrorType.permissionDenied,
                               message: 'Test error',
                               userMessage: 'Test user message',
                             );
@@ -460,8 +468,7 @@ void main() {
 
     group('End-to-End Error Handling Flow', () {
       testWidgets('handles location error from service to UI', (tester) async {
-        final errorHandler = ErrorHandler(
-          permissionService: mockPermissionService,
+        final errorHandler = service_error.ErrorHandler(
           locationService: mockLocationService,
           cameraService: mockCameraService,
         );
@@ -471,7 +478,7 @@ void main() {
             child: MaterialApp(
               home: Consumer(
                 builder: (context, ref, child) {
-                  final errorNotifier = ref.read(errorProvider.notifier);
+                  final errorNotifier = ref.read(error_provider.errorProvider.notifier);
 
                   return Scaffold(
                     body: ElevatedButton(

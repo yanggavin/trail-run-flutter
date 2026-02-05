@@ -399,6 +399,15 @@ class MockPhotoDao extends _i1.Mock implements _i7.PhotoDao {
       ) as _i6.Future<int>);
 
   @override
+  _i6.Future<int> getTotalPhotosCount() => (super.noSuchMethod(
+        Invocation.method(
+          #getTotalPhotosCount,
+          [],
+        ),
+        returnValue: _i6.Future<int>.value(0),
+      ) as _i6.Future<int>);
+
+  @override
   _i6.Future<List<_i2.PhotoEntity>> searchPhotosByCaption({
     required String? activityId,
     required String? query,

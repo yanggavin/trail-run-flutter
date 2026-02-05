@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../database.dart';
 import '../tables/photos_table.dart';
 import '../../../domain/models/photo.dart';
+import '../../../domain/enums/sync_state.dart';
 import '../../../domain/value_objects/coordinates.dart';
 import '../../../domain/value_objects/timestamp.dart';
 
@@ -86,6 +87,21 @@ class PhotoDao extends DatabaseAccessor<TrailRunDatabase> with _$PhotoDaoMixin {
     return result.read(photosTable.id.count()) ?? 0;
   }
 
+  /// Get total photos count (all activities)
+  Future<int> getTotalPhotosCount() async {
+    final query = selectOnly(photosTable)
+      ..addColumns([photosTable.id.count()]);
+    final result = await query.getSingle();
+    return result.read(photosTable.id.count()) ?? 0;
+  }
+
+  /// Get all photos
+  Future<List<PhotoEntity>> getAllPhotos() {
+    return (select(photosTable)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]))
+      .get();
+  }
+
   /// Search photos by caption
   Future<List<PhotoEntity>> searchPhotosByCaption({
     required String activityId,
@@ -132,6 +148,14 @@ class PhotoDao extends DatabaseAccessor<TrailRunDatabase> with _$PhotoDaoMixin {
       ));
   }
 
+  /// Update photo sync state
+  Future<int> updatePhotoSyncState(String id, SyncState syncState) {
+    return (update(photosTable)..where((t) => t.id.equals(id)))
+      .write(PhotosTableCompanion(
+        syncState: Value(syncState.index),
+      ));
+  }
+
   /// Delete photo by ID
   Future<int> deletePhoto(String id) {
     return (delete(photosTable)..where((t) => t.id.equals(id))).go();
@@ -175,6 +199,7 @@ class PhotoDao extends DatabaseAccessor<TrailRunDatabase> with _$PhotoDaoMixin {
       hasExifData: photo.hasExifData,
       curationScore: photo.curationScore,
       caption: photo.caption,
+      syncState: photo.syncState.index,
     );
   }
 
@@ -196,6 +221,7 @@ class PhotoDao extends DatabaseAccessor<TrailRunDatabase> with _$PhotoDaoMixin {
       hasExifData: entity.hasExifData,
       curationScore: entity.curationScore,
       caption: entity.caption,
+      syncState: SyncState.values[entity.syncState],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
@@ -11,6 +12,8 @@ import '../../domain/models/track_point.dart';
 import '../../domain/repositories/location_repository.dart';
 import '../../domain/value_objects/coordinates.dart';
 import '../../domain/value_objects/timestamp.dart';
+import '../database/database_provider.dart';
+import '../repositories/activity_repository_impl.dart';
 
 /// Background location tracking state
 enum BackgroundTrackingState {
@@ -26,6 +29,13 @@ class BackgroundLocationManager {
   static const MethodChannel _channel = MethodChannel('com.trailrun.location_service');
   static const String _isolatePortName = 'location_isolate_port';
   
+  BackgroundLocationManager({ActivityRepositoryImpl? activityRepository})
+      : _activityRepository = activityRepository ??
+            ActivityRepositoryImpl(database: DatabaseProvider.getInstance()) {
+    _initializeMethodChannel();
+    _loadPersistedState();
+  }
+
   // State management
   BackgroundTrackingState _state = BackgroundTrackingState.stopped;
   String? _currentActivityId;
@@ -46,6 +56,9 @@ class BackgroundLocationManager {
   // Persistence
   final List<TrackPoint> _pendingTrackPoints = [];
   static const int _maxPendingPoints = 100;
+  int _sequenceCounter = 0;
+  final math.Random _random = math.Random();
+  final ActivityRepositoryImpl _activityRepository;
   
   // Streams
   final StreamController<BackgroundTrackingState> _stateController = 
@@ -54,11 +67,6 @@ class BackgroundLocationManager {
       StreamController<TrackPoint>.broadcast();
   final StreamController<Map<String, dynamic>> _statsController = 
       StreamController<Map<String, dynamic>>.broadcast();
-
-  BackgroundLocationManager() {
-    _initializeMethodChannel();
-    _loadPersistedState();
-  }
 
   // Public API
   
@@ -77,6 +85,9 @@ class BackgroundLocationManager {
   }) async {
     if (_state == BackgroundTrackingState.active) return;
     
+    if (_currentActivityId != activityId) {
+      _sequenceCounter = 0;
+    }
     _currentActivityId = activityId;
     _updateState(BackgroundTrackingState.starting);
     
@@ -115,6 +126,7 @@ class BackgroundLocationManager {
     await _clearPersistedState();
     
     _currentActivityId = null;
+    _sequenceCounter = 0;
   }
 
   /// Pause background location tracking
@@ -300,8 +312,13 @@ class BackgroundLocationManager {
   void _handleLocationUpdate(Map<String, dynamic> data) {
     if (_state != BackgroundTrackingState.active) return;
     
+    final int incomingSequence = (data['sequence'] as int?) ?? _sequenceCounter;
+    if (incomingSequence >= _sequenceCounter) {
+      _sequenceCounter = incomingSequence + 1;
+    }
+
     final trackPoint = TrackPoint(
-      id: '', // Will be generated when persisted
+      id: _generateTrackPointId(),
       activityId: _currentActivityId!,
       timestamp: Timestamp(DateTime.fromMillisecondsSinceEpoch(data['timestamp'])),
       coordinates: Coordinates(
@@ -311,7 +328,7 @@ class BackgroundLocationManager {
       ),
       accuracy: data['accuracy'],
       source: LocationSource.gps,
-      sequence: data['sequence'] ?? 0,
+      sequence: incomingSequence,
     );
     
     _pendingTrackPoints.add(trackPoint);
@@ -350,13 +367,20 @@ class BackgroundLocationManager {
   Future<void> _persistPendingTrackPoints() async {
     if (_pendingTrackPoints.isEmpty) return;
     
-    // In a real implementation, you would save these to the database
-    // For now, we'll just clear them to prevent memory issues
     final pointsToSave = List<TrackPoint>.from(_pendingTrackPoints);
     _pendingTrackPoints.clear();
     
-    // TODO: Save pointsToSave to database using ActivityRepository
-    // This would be done through dependency injection in a real implementation
+    if (_currentActivityId == null || _currentActivityId!.isEmpty) {
+      return;
+    }
+
+    try {
+      await _activityRepository.addTrackPoints(_currentActivityId!, pointsToSave);
+      await _persistState();
+    } catch (_) {
+      // If persistence fails, re-queue points to avoid data loss
+      _pendingTrackPoints.insertAll(0, pointsToSave);
+    }
   }
 
   Future<void> _flushPendingTrackPoints() async {
@@ -365,14 +389,20 @@ class BackgroundLocationManager {
 
   Future<void> _persistState() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('background_tracking_activity_id', _currentActivityId ?? '');
+    if (_currentActivityId != null && _currentActivityId!.isNotEmpty) {
+      await prefs.setString('background_tracking_activity_id', _currentActivityId!);
+    } else {
+      await prefs.remove('background_tracking_activity_id');
+    }
     await prefs.setString('background_tracking_state', _state.toString());
     await prefs.setInt('background_tracking_interval', _currentIntervalSeconds);
+    await prefs.setInt('background_tracking_sequence', _sequenceCounter);
   }
 
   Future<void> _loadPersistedState() async {
     final prefs = await SharedPreferences.getInstance();
     _currentIntervalSeconds = prefs.getInt('background_tracking_interval') ?? 2;
+    _sequenceCounter = prefs.getInt('background_tracking_sequence') ?? 0;
   }
 
   Future<void> _clearPersistedState() async {
@@ -380,6 +410,7 @@ class BackgroundLocationManager {
     await prefs.remove('background_tracking_activity_id');
     await prefs.remove('background_tracking_state');
     await prefs.remove('background_tracking_interval');
+    await prefs.remove('background_tracking_sequence');
   }
 
   void _updateState(BackgroundTrackingState newState) {
@@ -387,6 +418,10 @@ class BackgroundLocationManager {
       _state = newState;
       _stateController.add(_state);
     }
+  }
+
+  String _generateTrackPointId() {
+    return 'tp_${DateTime.now().millisecondsSinceEpoch}_${_random.nextInt(1000)}';
   }
 
   void dispose() {

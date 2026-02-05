@@ -85,10 +85,15 @@ void main() {
         await tester.pumpWidget(createTestWidget());
 
         // Look for the handle bar container
-        final handleBar = find.byWidgetPredicate((widget) =>
-            widget is Container &&
-            widget.width == 40 &&
-            widget.height == 4);
+        final handleBar = find.byWidgetPredicate((widget) {
+          if (widget is! Container) return false;
+          final constraints = widget.constraints;
+          return constraints != null &&
+              constraints.minWidth == 40 &&
+              constraints.maxWidth == 40 &&
+              constraints.minHeight == 4 &&
+              constraints.maxHeight == 4;
+        });
         
         expect(handleBar, findsOneWidget);
       });

@@ -1348,6 +1348,14 @@ class $PhotosTableTable extends PhotosTable
   late final GeneratedColumn<String> caption = GeneratedColumn<String>(
       'caption', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _syncStateMeta =
+      const VerificationMeta('syncState');
+  @override
+  late final GeneratedColumn<int> syncState = GeneratedColumn<int>(
+      'sync_state', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1360,7 +1368,8 @@ class $PhotosTableTable extends PhotosTable
         thumbnailPath,
         hasExifData,
         curationScore,
-        caption
+        caption,
+        syncState
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1431,6 +1440,10 @@ class $PhotosTableTable extends PhotosTable
       context.handle(_captionMeta,
           caption.isAcceptableOrUnknown(data['caption']!, _captionMeta));
     }
+    if (data.containsKey('sync_state')) {
+      context.handle(_syncStateMeta,
+          syncState.isAcceptableOrUnknown(data['sync_state']!, _syncStateMeta));
+    }
     return context;
   }
 
@@ -1462,6 +1475,8 @@ class $PhotosTableTable extends PhotosTable
           .read(DriftSqlType.double, data['${effectivePrefix}curation_score'])!,
       caption: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}caption']),
+      syncState: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sync_state'])!,
     );
   }
 
@@ -1504,6 +1519,9 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
 
   /// Optional user-provided caption
   final String? caption;
+
+  /// Sync state of the photo (0: pending, 1: synced, 2: failed)
+  final int syncState;
   const PhotoEntity(
       {required this.id,
       required this.activityId,
@@ -1515,7 +1533,8 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
       this.thumbnailPath,
       required this.hasExifData,
       required this.curationScore,
-      this.caption});
+      this.caption,
+      required this.syncState});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1540,6 +1559,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
     if (!nullToAbsent || caption != null) {
       map['caption'] = Variable<String>(caption);
     }
+    map['sync_state'] = Variable<int>(syncState);
     return map;
   }
 
@@ -1566,6 +1586,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
       caption: caption == null && nullToAbsent
           ? const Value.absent()
           : Value(caption),
+      syncState: Value(syncState),
     );
   }
 
@@ -1584,6 +1605,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
       hasExifData: serializer.fromJson<bool>(json['hasExifData']),
       curationScore: serializer.fromJson<double>(json['curationScore']),
       caption: serializer.fromJson<String?>(json['caption']),
+      syncState: serializer.fromJson<int>(json['syncState']),
     );
   }
   @override
@@ -1601,6 +1623,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
       'hasExifData': serializer.toJson<bool>(hasExifData),
       'curationScore': serializer.toJson<double>(curationScore),
       'caption': serializer.toJson<String?>(caption),
+      'syncState': serializer.toJson<int>(syncState),
     };
   }
 
@@ -1615,7 +1638,8 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
           Value<String?> thumbnailPath = const Value.absent(),
           bool? hasExifData,
           double? curationScore,
-          Value<String?> caption = const Value.absent()}) =>
+          Value<String?> caption = const Value.absent(),
+          int? syncState}) =>
       PhotoEntity(
         id: id ?? this.id,
         activityId: activityId ?? this.activityId,
@@ -1629,6 +1653,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
         hasExifData: hasExifData ?? this.hasExifData,
         curationScore: curationScore ?? this.curationScore,
         caption: caption.present ? caption.value : this.caption,
+        syncState: syncState ?? this.syncState,
       );
   PhotoEntity copyWithCompanion(PhotosTableCompanion data) {
     return PhotoEntity(
@@ -1649,6 +1674,7 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
           ? data.curationScore.value
           : this.curationScore,
       caption: data.caption.present ? data.caption.value : this.caption,
+      syncState: data.syncState.present ? data.syncState.value : this.syncState,
     );
   }
 
@@ -1665,7 +1691,8 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
           ..write('thumbnailPath: $thumbnailPath, ')
           ..write('hasExifData: $hasExifData, ')
           ..write('curationScore: $curationScore, ')
-          ..write('caption: $caption')
+          ..write('caption: $caption, ')
+          ..write('syncState: $syncState')
           ..write(')'))
         .toString();
   }
@@ -1682,7 +1709,8 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
       thumbnailPath,
       hasExifData,
       curationScore,
-      caption);
+      caption,
+      syncState);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1697,7 +1725,8 @@ class PhotoEntity extends DataClass implements Insertable<PhotoEntity> {
           other.thumbnailPath == this.thumbnailPath &&
           other.hasExifData == this.hasExifData &&
           other.curationScore == this.curationScore &&
-          other.caption == this.caption);
+          other.caption == this.caption &&
+          other.syncState == this.syncState);
 }
 
 class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
@@ -1712,6 +1741,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
   final Value<bool> hasExifData;
   final Value<double> curationScore;
   final Value<String?> caption;
+  final Value<int> syncState;
   final Value<int> rowid;
   const PhotosTableCompanion({
     this.id = const Value.absent(),
@@ -1725,6 +1755,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
     this.hasExifData = const Value.absent(),
     this.curationScore = const Value.absent(),
     this.caption = const Value.absent(),
+    this.syncState = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PhotosTableCompanion.insert({
@@ -1739,6 +1770,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
     this.hasExifData = const Value.absent(),
     this.curationScore = const Value.absent(),
     this.caption = const Value.absent(),
+    this.syncState = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         activityId = Value(activityId),
@@ -1756,6 +1788,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
     Expression<bool>? hasExifData,
     Expression<double>? curationScore,
     Expression<String>? caption,
+    Expression<int>? syncState,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1770,6 +1803,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
       if (hasExifData != null) 'has_exif_data': hasExifData,
       if (curationScore != null) 'curation_score': curationScore,
       if (caption != null) 'caption': caption,
+      if (syncState != null) 'sync_state': syncState,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1786,6 +1820,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
       Value<bool>? hasExifData,
       Value<double>? curationScore,
       Value<String?>? caption,
+      Value<int>? syncState,
       Value<int>? rowid}) {
     return PhotosTableCompanion(
       id: id ?? this.id,
@@ -1799,6 +1834,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
       hasExifData: hasExifData ?? this.hasExifData,
       curationScore: curationScore ?? this.curationScore,
       caption: caption ?? this.caption,
+      syncState: syncState ?? this.syncState,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1839,6 +1875,9 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
     if (caption.present) {
       map['caption'] = Variable<String>(caption.value);
     }
+    if (syncState.present) {
+      map['sync_state'] = Variable<int>(syncState.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1859,6 +1898,7 @@ class PhotosTableCompanion extends UpdateCompanion<PhotoEntity> {
           ..write('hasExifData: $hasExifData, ')
           ..write('curationScore: $curationScore, ')
           ..write('caption: $caption, ')
+          ..write('syncState: $syncState, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3631,6 +3671,7 @@ typedef $$PhotosTableTableCreateCompanionBuilder = PhotosTableCompanion
   Value<bool> hasExifData,
   Value<double> curationScore,
   Value<String?> caption,
+  Value<int> syncState,
   Value<int> rowid,
 });
 typedef $$PhotosTableTableUpdateCompanionBuilder = PhotosTableCompanion
@@ -3646,6 +3687,7 @@ typedef $$PhotosTableTableUpdateCompanionBuilder = PhotosTableCompanion
   Value<bool> hasExifData,
   Value<double> curationScore,
   Value<String?> caption,
+  Value<int> syncState,
   Value<int> rowid,
 });
 
@@ -3690,6 +3732,9 @@ class $$PhotosTableTableFilterComposer
 
   ColumnFilters<String> get caption => $composableBuilder(
       column: $table.caption, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get syncState => $composableBuilder(
+      column: $table.syncState, builder: (column) => ColumnFilters(column));
 }
 
 class $$PhotosTableTableOrderingComposer
@@ -3735,6 +3780,9 @@ class $$PhotosTableTableOrderingComposer
 
   ColumnOrderings<String> get caption => $composableBuilder(
       column: $table.caption, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get syncState => $composableBuilder(
+      column: $table.syncState, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PhotosTableTableAnnotationComposer
@@ -3778,6 +3826,9 @@ class $$PhotosTableTableAnnotationComposer
 
   GeneratedColumn<String> get caption =>
       $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<int> get syncState =>
+      $composableBuilder(column: $table.syncState, builder: (column) => column);
 }
 
 class $$PhotosTableTableTableManager extends RootTableManager<
@@ -3817,6 +3868,7 @@ class $$PhotosTableTableTableManager extends RootTableManager<
             Value<bool> hasExifData = const Value.absent(),
             Value<double> curationScore = const Value.absent(),
             Value<String?> caption = const Value.absent(),
+            Value<int> syncState = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PhotosTableCompanion(
@@ -3831,6 +3883,7 @@ class $$PhotosTableTableTableManager extends RootTableManager<
             hasExifData: hasExifData,
             curationScore: curationScore,
             caption: caption,
+            syncState: syncState,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3845,6 +3898,7 @@ class $$PhotosTableTableTableManager extends RootTableManager<
             Value<bool> hasExifData = const Value.absent(),
             Value<double> curationScore = const Value.absent(),
             Value<String?> caption = const Value.absent(),
+            Value<int> syncState = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PhotosTableCompanion.insert(
@@ -3859,6 +3913,7 @@ class $$PhotosTableTableTableManager extends RootTableManager<
             hasExifData: hasExifData,
             curationScore: curationScore,
             caption: caption,
+            syncState: syncState,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

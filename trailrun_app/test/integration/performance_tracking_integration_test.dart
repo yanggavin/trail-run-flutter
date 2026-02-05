@@ -9,18 +9,65 @@ import '../../lib/data/services/map_service.dart';
 import '../../lib/data/services/progressive_photo_loader.dart';
 import '../../lib/data/services/memory_manager.dart';
 import '../../lib/data/services/battery_monitor.dart';
-import '../../lib/data/repositories/activity_repository.dart';
-import '../../lib/data/repositories/location_repository.dart';
+import '../../lib/domain/repositories/activity_repository.dart';
+import '../../lib/domain/repositories/location_repository.dart';
 import '../../lib/domain/models/activity.dart';
 import '../../lib/domain/models/track_point.dart';
 import '../../lib/domain/models/photo.dart';
 import '../../lib/domain/value_objects/coordinates.dart';
 import '../../lib/domain/value_objects/timestamp.dart';
 import '../../lib/domain/value_objects/measurement_units.dart';
+import '../../lib/domain/enums/location_source.dart';
 import '../../lib/domain/enums/privacy_level.dart';
 
-@GenerateMocks([ActivityRepository, LocationRepository])
-import 'performance_tracking_integration_test.mocks.dart';
+class MockActivityRepository extends Mock implements ActivityRepository {
+  @override
+  Future<Activity> createActivity(Activity? activity) =>
+      super.noSuchMethod(
+        Invocation.method(#createActivity, [activity]),
+        returnValue: Future<Activity>.value(activity),
+      ) as Future<Activity>;
+
+  @override
+  Future<void> addTrackPoint(String? activityId, TrackPoint? trackPoint) =>
+      super.noSuchMethod(
+        Invocation.method(#addTrackPoint, [activityId, trackPoint]),
+        returnValue: Future<void>.value(),
+      ) as Future<void>;
+}
+
+class MockLocationRepository extends Mock implements LocationRepository {
+  @override
+  Future<void> startLocationTracking({
+    LocationAccuracy? accuracy,
+    int? intervalSeconds,
+    double? distanceFilter,
+  }) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #startLocationTracking,
+          [],
+          {
+            #accuracy: accuracy,
+            #intervalSeconds: intervalSeconds,
+            #distanceFilter: distanceFilter,
+          },
+        ),
+        returnValue: Future<void>.value(),
+      ) as Future<void>;
+
+  @override
+  Stream<TrackPoint> get locationStream => super.noSuchMethod(
+        Invocation.getter(#locationStream),
+        returnValue: const Stream<TrackPoint>.empty(),
+      ) as Stream<TrackPoint>;
+
+  @override
+  Stream<LocationTrackingState> get trackingStateStream => super.noSuchMethod(
+        Invocation.getter(#trackingStateStream),
+        returnValue: const Stream<LocationTrackingState>.empty(),
+      ) as Stream<LocationTrackingState>;
+}
 
 void main() {
   group('Performance Tracking Integration Tests', () {
@@ -54,13 +101,13 @@ void main() {
       
       // Mock repository responses
       when(mockActivityRepository.createActivity(any))
-          .thenAnswer((_) async => {});
+          .thenAnswer((invocation) async => invocation.positionalArguments.first as Activity);
       when(mockActivityRepository.addTrackPoint(any, any))
-          .thenAnswer((_) async => {});
+          .thenAnswer((_) async {});
       when(mockLocationRepository.startLocationTracking(
         accuracy: anyNamed('accuracy'),
         intervalSeconds: anyNamed('intervalSeconds'),
-      )).thenAnswer((_) async => {});
+      )).thenAnswer((_) async {});
 
       // Start memory monitoring
       memoryManager.startMonitoring(interval: const Duration(seconds: 5));
@@ -233,6 +280,7 @@ void main() {
             elevation: 100.0 + (i * 0.1),
           ),
           accuracy: 5.0,
+          source: LocationSource.gps,
           sequence: i,
         );
         
@@ -337,6 +385,7 @@ List<TrackPoint> _generateLargeRoute(int pointCount) {
         elevation: elevation,
       ),
       accuracy: 3.0 + math.Random().nextDouble() * 7.0, // 3-10m accuracy
+      source: LocationSource.gps,
       sequence: i,
     ));
   }

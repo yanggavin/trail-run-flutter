@@ -296,7 +296,7 @@ class _ActivityPreview extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${(activity.distanceMeters / 1000).toStringAsFixed(2)} km • ${_formatDuration(activity.duration)}',
+                  '${activity.distance.kilometers.toStringAsFixed(2)} km • ${_formatDuration(activity.duration ?? Duration.zero)}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),

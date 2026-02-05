@@ -27,6 +27,7 @@ class SyncService {
   SyncQueueDao? _syncQueueDao;
   Timer? _syncTimer;
   bool _isSyncing = false;
+  bool _localOnly = false;
   DateTime? _lastSyncTime;
   
   final StreamController<SyncStatus> _syncStatusController = StreamController<SyncStatus>.broadcast();
@@ -50,9 +51,11 @@ class SyncService {
     required TrailRunDatabase database,
     String? baseUrl,
     Map<String, String>? headers,
+    bool localOnly = false,
   }) async {
     _database = database;
     _syncQueueDao = database.syncQueueDao;
+    _localOnly = localOnly;
     
     // Load last sync time
     final prefs = await SharedPreferences.getInstance();
@@ -61,24 +64,29 @@ class SyncService {
       _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSyncMillis);
     }
     
-    // Configure Dio
-    _dio.options.baseUrl = baseUrl ?? 'https://api.trailrun.app';
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
-    _dio.options.headers.addAll(headers ?? {});
+    if (!_localOnly) {
+      // Configure Dio
+      _dio.options.baseUrl = baseUrl ?? 'https://api.trailrun.app';
+      _dio.options.connectTimeout = const Duration(seconds: 30);
+      _dio.options.receiveTimeout = const Duration(seconds: 30);
+      _dio.options.headers.addAll(headers ?? {});
 
-    // Initialize network service
-    await _networkService.initialize();
+      // Initialize network service
+      await _networkService.initialize();
 
-    // Listen for network connectivity changes
-    _networkService.connectivityStream.listen((isConnected) {
-      if (isConnected && !_isSyncing) {
-        _scheduleSyncCheck();
-      }
-    });
+      // Listen for network connectivity changes
+      _networkService.connectivityStream.listen((isConnected) {
+        if (isConnected && !_isSyncing) {
+          _scheduleSyncCheck();
+        }
+      });
 
-    // Start periodic sync checks
-    _startPeriodicSync();
+      // Start periodic sync checks
+      _startPeriodicSync();
+    } else {
+      // Local-only mode: process any pending operations immediately
+      await syncAll();
+    }
   }
 
   /// Start periodic sync checks
@@ -102,7 +110,10 @@ class SyncService {
 
   /// Sync all pending operations
   Future<void> syncAll() async {
-    if (_isSyncing || !_networkService.isConnected || _syncQueueDao == null) {
+    if (_isSyncing || _syncQueueDao == null) {
+      return;
+    }
+    if (!_localOnly && !_networkService.isConnected) {
       return;
     }
 
@@ -154,7 +165,10 @@ class SyncService {
 
   /// Sync specific activity
   Future<void> syncActivity(String activityId) async {
-    if (!_networkService.isConnected || _syncQueueDao == null) {
+    if (_syncQueueDao == null) {
+      return;
+    }
+    if (!_localOnly && !_networkService.isConnected) {
       return;
     }
 
@@ -178,6 +192,9 @@ class SyncService {
   /// Perform individual sync operation
   Future<bool> _syncOperation(SyncQueueEntity operation) async {
     try {
+      if (_localOnly) {
+        return await _applyLocalSyncOperation(operation);
+      }
       switch (operation.entityType) {
         case 'activity':
           return await _syncActivityOperation(operation);
@@ -442,8 +459,39 @@ class SyncService {
     await _syncQueueDao!.createSyncOperation(syncOperation);
 
     // Trigger immediate sync if connected
-    if (_networkService.isConnected && !_isSyncing) {
+    if (_localOnly) {
+      await syncAll();
+    } else if (_networkService.isConnected && !_isSyncing) {
       _scheduleSyncCheck();
+    }
+  }
+
+  Future<bool> _applyLocalSyncOperation(SyncQueueEntity operation) async {
+    if (_database == null) return false;
+
+    try {
+      switch (operation.entityType) {
+        case 'activity':
+          await _database!.activityDao.updateActivitySyncState(
+            operation.entityId,
+            SyncState.synced,
+          );
+          return true;
+        case 'photo':
+          await _database!.photoDao.updatePhotoSyncState(
+            operation.entityId,
+            SyncState.synced,
+          );
+          return true;
+        case 'track_point':
+        case 'split':
+          // Track points and splits don't have sync state locally
+          return true;
+        default:
+          return true;
+      }
+    } catch (_) {
+      return false;
     }
   }
 

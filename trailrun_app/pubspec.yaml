@@ -18,6 +18,7 @@ dependencies:
   # Database & Storage
   drift: ^2.14.1
   sqlite3_flutter_libs: ^0.5.18
+  sqlite3: ^2.4.0
   path_provider: ^2.1.1
   path: ^1.8.3
   shared_preferences: ^2.2.2
@@ -48,6 +49,7 @@ dependencies:
   uuid: ^4.2.1
   share_plus: ^7.2.1
   archive: ^3.4.9
+  device_info_plus: ^10.1.0
 
 dev_dependencies:
   flutter_test:
@@ -72,14 +74,6 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-  
-  # iOS specific configuration
-  fonts:
-    - family: SF Pro Display
-      fonts:
-        - asset: fonts/SFProDisplay-Regular.ttf
-        - asset: fonts/SFProDisplay-Bold.ttf
-          weight: 700
   
   # Generate app icons for iOS
   generate: true

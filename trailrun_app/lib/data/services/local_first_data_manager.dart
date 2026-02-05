@@ -7,6 +7,9 @@ import '../database/daos/track_point_dao.dart';
 import '../database/daos/split_dao.dart';
 import '../../domain/models/models.dart';
 import '../../domain/enums/enums.dart';
+import '../../domain/value_objects/measurement_units.dart';
+import '../../domain/value_objects/timestamp.dart';
+import '../../domain/value_objects/coordinates.dart';
 import 'sync_service.dart';
 
 /// Manager for local-first data operations with automatic sync queuing
@@ -47,7 +50,7 @@ class LocalFirstDataManager {
     final localActivity = activity.copyWith(syncState: SyncState.local);
     
     // Persist immediately to local database
-    await _activityDao!.insertActivity(localActivity.toEntity());
+    await _activityDao!.createActivity(localActivity.toEntity());
     
     // Queue for sync
     await _syncService!.queueEntitySync(
@@ -130,7 +133,7 @@ class LocalFirstDataManager {
       throw StateError('LocalFirstDataManager not initialized');
     }
 
-    final entities = await _activityDao!.getActivities(
+    final entities = await _activityDao!.getActivitiesPaginated(
       limit: limit,
       offset: offset,
     );
@@ -144,7 +147,7 @@ class LocalFirstDataManager {
       throw StateError('LocalFirstDataManager not initialized');
     }
 
-    return _activityDao!.watchActivity(activityId)
+    return _activityDao!.watchActivityById(activityId)
         .map((entity) => entity?.toDomain());
   }
 
@@ -154,8 +157,8 @@ class LocalFirstDataManager {
       throw StateError('LocalFirstDataManager not initialized');
     }
 
-    return _activityDao!.watchActivities(limit: limit)
-        .map((entities) => entities.map((e) => e.toDomain()).toList());
+    return _activityDao!.watchAllActivities()
+        .map((entities) => entities.take(limit).map((e) => e.toDomain()).toList());
   }
 
   // Photo Operations
@@ -170,7 +173,7 @@ class LocalFirstDataManager {
     final localPhoto = photo.copyWith(syncState: SyncState.local);
     
     // Persist immediately to local database
-    await _photoDao!.insertPhoto(localPhoto.toEntity());
+    await _photoDao!.createPhoto(localPhoto.toEntity());
     
     // Queue for sync
     await _syncService!.queueEntitySync(
@@ -252,7 +255,7 @@ class LocalFirstDataManager {
     }
 
     // Persist immediately to local database
-    await _trackPointDao!.insertTrackPoint(trackPoint.toEntity());
+    await _trackPointDao!.createTrackPoint(trackPoint.toEntity());
     
     // Queue for sync with lower priority (track points are numerous)
     await _syncService!.queueEntitySync(
@@ -273,7 +276,7 @@ class LocalFirstDataManager {
     }
 
     // Persist immediately to local database in batch
-    await _trackPointDao!.insertTrackPointsBatch(
+    await _trackPointDao!.createTrackPointsBatch(
       trackPoints.map((tp) => tp.toEntity()).toList(),
     );
     
@@ -308,7 +311,7 @@ class LocalFirstDataManager {
     }
 
     // Persist immediately to local database
-    await _splitDao!.insertSplit(split.toEntity());
+    await _splitDao!.createSplit(split.toEntity());
     
     // Queue for sync
     await _syncService!.queueEntitySync(
@@ -389,8 +392,8 @@ class LocalFirstDataManager {
     }
 
     final activityCount = await _activityDao!.getActivitiesCount();
-    final photoCount = await _photoDao!.getPhotosCount();
-    final trackPointCount = await _trackPointDao!.getTrackPointsCount();
+    final photoCount = await _photoDao!.getTotalPhotosCount();
+    final trackPointCount = await _trackPointDao!.getTotalTrackPointsCount();
 
     return OfflineDataStats(
       activityCount: activityCount,
@@ -421,12 +424,12 @@ extension ActivityEntityExtension on ActivityEntity {
   Activity toDomain() {
     return Activity(
       id: id,
-      startTime: DateTime.fromMillisecondsSinceEpoch(startTime),
-      endTime: endTime != null ? DateTime.fromMillisecondsSinceEpoch(endTime!) : null,
-      distanceMeters: distanceMeters,
-      duration: Duration(seconds: durationSeconds),
-      elevationGainMeters: elevationGainMeters,
-      averagePaceSecondsPerKm: averagePaceSecondsPerKm,
+      startTime: Timestamp.fromMilliseconds(startTime),
+      endTime: endTime != null ? Timestamp.fromMilliseconds(endTime!) : null,
+      distance: Distance.meters(distanceMeters),
+      elevationGain: Elevation.meters(elevationGainMeters),
+      elevationLoss: Elevation.meters(elevationLossMeters),
+      averagePace: averagePaceSecondsPerKm != null ? Pace.secondsPerKilometer(averagePaceSecondsPerKm!) : null,
       title: title,
       notes: notes,
       privacy: PrivacyLevel.values[privacyLevel],
@@ -445,10 +448,11 @@ extension ActivityDomainExtension on Activity {
       id: id,
       startTime: startTime.millisecondsSinceEpoch,
       endTime: endTime?.millisecondsSinceEpoch,
-      distanceMeters: distanceMeters,
-      durationSeconds: duration.inSeconds,
-      elevationGainMeters: elevationGainMeters,
-      averagePaceSecondsPerKm: averagePaceSecondsPerKm,
+      distanceMeters: distance.meters,
+      durationSeconds: duration?.inSeconds ?? 0,
+      elevationGainMeters: elevationGain.meters,
+      elevationLossMeters: elevationLoss.meters,
+      averagePaceSecondsPerKm: averagePace?.secondsPerKilometer,
       title: title,
       notes: notes,
       privacyLevel: privacy.index,
@@ -462,12 +466,12 @@ extension ActivityDomainExtension on Activity {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime?.toIso8601String(),
-      'distanceMeters': distanceMeters,
-      'durationSeconds': duration.inSeconds,
-      'elevationGainMeters': elevationGainMeters,
-      'averagePaceSecondsPerKm': averagePaceSecondsPerKm,
+      'startTime': startTime.dateTime.toIso8601String(),
+      'endTime': endTime?.dateTime.toIso8601String(),
+      'distanceMeters': distance.meters,
+      'durationSeconds': duration?.inSeconds,
+      'elevationGainMeters': elevationGain.meters,
+      'averagePaceSecondsPerKm': averagePace?.secondsPerKilometer,
       'title': title,
       'notes': notes,
       'privacy': privacy.name,
@@ -481,13 +485,19 @@ extension PhotoEntityExtension on PhotoEntity {
     return Photo(
       id: id,
       activityId: activityId,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp),
-      latitude: latitude,
-      longitude: longitude,
+      timestamp: Timestamp.fromMilliseconds(timestamp),
+      coordinates: (latitude != null && longitude != null)
+          ? Coordinates(
+              latitude: latitude!,
+              longitude: longitude!,
+              elevation: elevation,
+            )
+          : null,
       filePath: filePath,
       thumbnailPath: thumbnailPath,
       hasExifData: hasExifData,
       curationScore: curationScore,
+      caption: caption,
       syncState: SyncState.values[syncState],
     );
   }
@@ -499,15 +509,15 @@ extension PhotoDomainExtension on Photo {
       id: id,
       activityId: activityId,
       timestamp: timestamp.millisecondsSinceEpoch,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: coordinates?.latitude,
+      longitude: coordinates?.longitude,
+      elevation: coordinates?.elevation,
       filePath: filePath,
       thumbnailPath: thumbnailPath,
       hasExifData: hasExifData,
       curationScore: curationScore,
+      caption: caption,
       syncState: syncState.index,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-      updatedAt: DateTime.now().millisecondsSinceEpoch,
     );
   }
 
@@ -515,13 +525,15 @@ extension PhotoDomainExtension on Photo {
     return {
       'id': id,
       'activityId': activityId,
-      'timestamp': timestamp.toIso8601String(),
-      'latitude': latitude,
-      'longitude': longitude,
+      'timestamp': timestamp.dateTime.toIso8601String(),
+      'latitude': coordinates?.latitude,
+      'longitude': coordinates?.longitude,
+      'elevation': coordinates?.elevation,
       'filePath': filePath,
       'thumbnailPath': thumbnailPath,
       'hasExifData': hasExifData,
       'curationScore': curationScore,
+      'caption': caption,
     };
   }
 }
@@ -531,10 +543,12 @@ extension TrackPointEntityExtension on TrackPointEntity {
     return TrackPoint(
       id: id,
       activityId: activityId,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp),
-      latitude: latitude,
-      longitude: longitude,
-      elevation: elevation,
+      timestamp: Timestamp.fromMilliseconds(timestamp),
+      coordinates: Coordinates(
+        latitude: latitude,
+        longitude: longitude,
+        elevation: elevation,
+      ),
       accuracy: accuracy,
       source: LocationSource.values[source],
       sequence: sequence,
@@ -548,9 +562,9 @@ extension TrackPointDomainExtension on TrackPoint {
       id: id,
       activityId: activityId,
       timestamp: timestamp.millisecondsSinceEpoch,
-      latitude: latitude,
-      longitude: longitude,
-      elevation: elevation,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      elevation: coordinates.elevation,
       accuracy: accuracy,
       source: source.index,
       sequence: sequence,
@@ -561,10 +575,10 @@ extension TrackPointDomainExtension on TrackPoint {
     return {
       'id': id,
       'activityId': activityId,
-      'timestamp': timestamp.toIso8601String(),
-      'latitude': latitude,
-      'longitude': longitude,
-      'elevation': elevation,
+      'timestamp': timestamp.dateTime.toIso8601String(),
+      'latitude': coordinates.latitude,
+      'longitude': coordinates.longitude,
+      'elevation': coordinates.elevation,
       'accuracy': accuracy,
       'source': source.name,
       'sequence': sequence,
@@ -578,12 +592,12 @@ extension SplitEntityExtension on SplitEntity {
       id: id,
       activityId: activityId,
       splitNumber: splitNumber,
-      distanceMeters: distanceMeters,
-      duration: Duration(seconds: durationSeconds),
-      elevationGainMeters: elevationGainMeters,
-      averagePaceSecondsPerKm: averagePaceSecondsPerKm,
-      startTime: DateTime.fromMillisecondsSinceEpoch(startTime),
-      endTime: DateTime.fromMillisecondsSinceEpoch(endTime),
+      startTime: Timestamp.fromMilliseconds(startTime),
+      endTime: Timestamp.fromMilliseconds(endTime),
+      distance: Distance.meters(distanceMeters),
+      pace: Pace.secondsPerKilometer(paceSecondsPerKm),
+      elevationGain: Elevation.meters(elevationGainMeters),
+      elevationLoss: Elevation.meters(elevationLossMeters),
     );
   }
 }
@@ -594,12 +608,12 @@ extension SplitDomainExtension on Split {
       id: id,
       activityId: activityId,
       splitNumber: splitNumber,
-      distanceMeters: distanceMeters,
-      durationSeconds: duration.inSeconds,
-      elevationGainMeters: elevationGainMeters,
-      averagePaceSecondsPerKm: averagePaceSecondsPerKm,
       startTime: startTime.millisecondsSinceEpoch,
       endTime: endTime.millisecondsSinceEpoch,
+      distanceMeters: distance.meters,
+      elevationGainMeters: elevationGain.meters,
+      elevationLossMeters: elevationLoss.meters,
+      paceSecondsPerKm: pace.secondsPerKilometer,
     );
   }
 
@@ -608,12 +622,12 @@ extension SplitDomainExtension on Split {
       'id': id,
       'activityId': activityId,
       'splitNumber': splitNumber,
-      'distanceMeters': distanceMeters,
+      'distanceMeters': distance.meters,
       'durationSeconds': duration.inSeconds,
-      'elevationGainMeters': elevationGainMeters,
-      'averagePaceSecondsPerKm': averagePaceSecondsPerKm,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime.toIso8601String(),
+      'elevationGainMeters': elevationGain.meters,
+      'averagePaceSecondsPerKm': pace.secondsPerKilometer,
+      'startTime': startTime.dateTime.toIso8601String(),
+      'endTime': endTime.dateTime.toIso8601String(),
     };
   }
 }

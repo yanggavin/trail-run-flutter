@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.PowerManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
@@ -15,6 +16,8 @@ class MainActivity : FlutterActivity() {
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        FlutterEngineCache.getInstance().put("main_engine", flutterEngine)
         
         setupLocationServiceChannel(flutterEngine)
         setupPermissionChannel(flutterEngine)
@@ -85,6 +88,10 @@ class MainActivity : FlutterActivity() {
                     "getAndroidSdkVersion" -> {
                         result.success(Build.VERSION.SDK_INT)
                     }
+                    "isLowPowerModeEnabled" -> {
+                        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                        result.success(powerManager.isPowerSaveMode)
+                    }
                     "openAppSettings" -> {
                         openAppSettings()
                         result.success(true)
@@ -137,6 +144,12 @@ class MainActivity : FlutterActivity() {
         // This would be communicated to the service via broadcast or shared preferences
         val sharedPrefs = getSharedPreferences("location_tracking", MODE_PRIVATE)
         sharedPrefs.edit().putInt("sampling_interval", intervalSeconds).apply()
+
+        val intent = Intent(this, LocationTrackingService::class.java).apply {
+            action = LocationTrackingService.ACTION_UPDATE_INTERVAL
+            putExtra("intervalSeconds", intervalSeconds)
+        }
+        startService(intent)
     }
     
     private fun updateServiceNotification(distance: String, duration: String, pace: String) {

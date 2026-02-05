@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart' as geolocator;
+import 'package:permission_handler/permission_handler.dart' as perm;
 
 /// Platform-specific permission handling service
 class PlatformPermissionService {
@@ -19,31 +20,41 @@ class PlatformPermissionService {
 
   /// Request camera permission
   static Future<bool> requestCameraPermission() async {
-    final status = await Permission.camera.request();
+    final status = await perm.Permission.camera.request();
     return status.isGranted;
   }
 
   /// Request storage/photo permissions
   static Future<bool> requestStoragePermission() async {
     if (Platform.isIOS) {
-      final status = await Permission.photos.request();
+      final status = await perm.Permission.photos.request();
       return status.isGranted;
     } else {
       // Android 13+ uses granular photo permissions
       if (await _isAndroid13OrHigher()) {
-        final status = await Permission.photos.request();
+        final status = await perm.Permission.photos.request();
         return status.isGranted;
       } else {
-        final status = await Permission.storage.request();
+        final status = await perm.Permission.storage.request();
         return status.isGranted;
       }
     }
   }
 
+  /// Check if camera permission is granted
+  static Future<bool> hasCameraPermission() async {
+    return await perm.Permission.camera.isGranted;
+  }
+
+  /// Check if storage/photo permission is granted
+  static Future<bool> hasStoragePermission() async {
+    return await _checkStoragePermission();
+  }
+
   /// Check if all required permissions are granted
   static Future<PermissionStatus> checkAllPermissions() async {
     final locationResult = await _checkLocationPermission();
-    final cameraGranted = await Permission.camera.isGranted;
+    final cameraGranted = await perm.Permission.camera.isGranted;
     final storageGranted = await _checkStoragePermission();
 
     return PermissionStatus(
@@ -57,18 +68,18 @@ class PlatformPermissionService {
   static Future<LocationPermissionResult> _requestIOSLocationPermission() async {
     try {
       // First request when-in-use permission
-      var status = await Permission.locationWhenInUse.request();
+      var status = await perm.Permission.locationWhenInUse.request();
       
       if (!status.isGranted) {
         return LocationPermissionResult.denied;
       }
 
       // Then request always permission for background tracking
-      status = await Permission.locationAlways.request();
+      status = await perm.Permission.locationAlways.request();
       
       if (status.isGranted) {
         return LocationPermissionResult.always;
-      } else if (await Permission.locationWhenInUse.isGranted) {
+      } else if (await perm.Permission.locationWhenInUse.isGranted) {
         return LocationPermissionResult.whileInUse;
       } else {
         return LocationPermissionResult.denied;
@@ -82,7 +93,7 @@ class PlatformPermissionService {
   static Future<LocationPermissionResult> _requestAndroidLocationPermission() async {
     try {
       // Request fine location first
-      var status = await Permission.location.request();
+      var status = await perm.Permission.location.request();
       
       if (!status.isGranted) {
         return LocationPermissionResult.denied;
@@ -90,7 +101,7 @@ class PlatformPermissionService {
 
       // For Android 10+ (API 29+), request background location separately
       if (await _isAndroid10OrHigher()) {
-        final backgroundStatus = await Permission.locationAlways.request();
+        final backgroundStatus = await perm.Permission.locationAlways.request();
         
         if (backgroundStatus.isGranted) {
           return LocationPermissionResult.always;
@@ -108,17 +119,17 @@ class PlatformPermissionService {
   /// Check current location permission status
   static Future<LocationPermissionResult> _checkLocationPermission() async {
     if (Platform.isIOS) {
-      if (await Permission.locationAlways.isGranted) {
+      if (await perm.Permission.locationAlways.isGranted) {
         return LocationPermissionResult.always;
-      } else if (await Permission.locationWhenInUse.isGranted) {
+      } else if (await perm.Permission.locationWhenInUse.isGranted) {
         return LocationPermissionResult.whileInUse;
       } else {
         return LocationPermissionResult.denied;
       }
     } else {
-      if (await Permission.locationAlways.isGranted) {
+      if (await perm.Permission.locationAlways.isGranted) {
         return LocationPermissionResult.always;
-      } else if (await Permission.location.isGranted) {
+      } else if (await perm.Permission.location.isGranted) {
         return LocationPermissionResult.whileInUse;
       } else {
         return LocationPermissionResult.denied;
@@ -129,12 +140,12 @@ class PlatformPermissionService {
   /// Check storage permission status
   static Future<bool> _checkStoragePermission() async {
     if (Platform.isIOS) {
-      return await Permission.photos.isGranted;
+      return await perm.Permission.photos.isGranted;
     } else {
       if (await _isAndroid13OrHigher()) {
-        return await Permission.photos.isGranted;
+        return await perm.Permission.photos.isGranted;
       } else {
-        return await Permission.storage.isGranted;
+        return await perm.Permission.storage.isGranted;
       }
     }
   }
@@ -165,11 +176,27 @@ class PlatformPermissionService {
 
   /// Open app settings for manual permission configuration
   static Future<void> openAppSettings() async {
-    await openAppSettings();
+    await perm.openAppSettings();
+  }
+
+  /// Open location settings for enabling GPS services
+  static Future<void> openLocationSettings() async {
+    await geolocator.Geolocator.openLocationSettings();
+  }
+
+  /// Get Android SDK version (0 on non-Android or failure)
+  static Future<int> getAndroidSdkVersion() async {
+    if (!Platform.isAndroid) return 0;
+
+    try {
+      return await _channel.invokeMethod<int>('getAndroidSdkVersion') ?? 0;
+    } catch (e) {
+      return 0;
+    }
   }
 
   /// Show platform-appropriate permission rationale
-  static Future<bool> shouldShowPermissionRationale(Permission permission) async {
+  static Future<bool> shouldShowPermissionRationale(perm.Permission permission) async {
     return await permission.shouldShowRequestRationale;
   }
 }

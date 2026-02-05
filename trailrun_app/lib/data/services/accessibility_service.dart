@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 /// Service for handling accessibility features
@@ -271,23 +272,47 @@ class AccessibilityService {
     final isHighContrast = isHighContrastEnabled(context);
     final isBoldText = isBoldTextEnabled(context);
     final textScaleFactor = getTextScaleFactor(context);
-    
+
+    final scaledTheme = baseTheme.textTheme.apply(fontSizeFactor: textScaleFactor);
+    final boldTheme = _applyBoldText(scaledTheme, isBoldText);
+
     if (isHighContrast) {
+      final colorScheme = baseTheme.brightness == Brightness.dark
+          ? const ColorScheme.highContrastDark()
+          : const ColorScheme.highContrastLight();
+
       return baseTheme.copyWith(
-        colorScheme: const ColorScheme.highContrast(),
-        textTheme: baseTheme.textTheme.apply(
-          fontWeightDelta: isBoldText ? 2 : 0,
-          fontSizeFactor: textScaleFactor,
-        ),
-      );
-    } else {
-      return baseTheme.copyWith(
-        textTheme: baseTheme.textTheme.apply(
-          fontWeightDelta: isBoldText ? 1 : 0,
-          fontSizeFactor: textScaleFactor,
-        ),
+        colorScheme: colorScheme,
+        textTheme: boldTheme,
       );
     }
+
+    return baseTheme.copyWith(textTheme: boldTheme);
+  }
+
+  static TextTheme _applyBoldText(TextTheme theme, bool isBold) {
+    if (!isBold) return theme;
+
+    TextStyle? apply(TextStyle? style) =>
+        style?.copyWith(fontWeight: FontWeight.bold);
+
+    return theme.copyWith(
+      displayLarge: apply(theme.displayLarge),
+      displayMedium: apply(theme.displayMedium),
+      displaySmall: apply(theme.displaySmall),
+      headlineLarge: apply(theme.headlineLarge),
+      headlineMedium: apply(theme.headlineMedium),
+      headlineSmall: apply(theme.headlineSmall),
+      titleLarge: apply(theme.titleLarge),
+      titleMedium: apply(theme.titleMedium),
+      titleSmall: apply(theme.titleSmall),
+      bodyLarge: apply(theme.bodyLarge),
+      bodyMedium: apply(theme.bodyMedium),
+      bodySmall: apply(theme.bodySmall),
+      labelLarge: apply(theme.labelLarge),
+      labelMedium: apply(theme.labelMedium),
+      labelSmall: apply(theme.labelSmall),
+    );
   }
 }
 

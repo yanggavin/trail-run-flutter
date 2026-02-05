@@ -138,11 +138,11 @@ class PrivacyService {
     try {
       // Delete all database data
       await _database.transaction(() async {
-        await _database.syncQueueDao.deleteAll();
-        await _database.splitDao.deleteAll();
-        await _database.photoDao.deleteAll();
-        await _database.trackPointDao.deleteAll();
-        await _database.activityDao.deleteAll();
+        await _database.delete(_database.syncQueueTable).go();
+        await _database.delete(_database.splitsTable).go();
+        await _database.delete(_database.photosTable).go();
+        await _database.delete(_database.trackPointsTable).go();
+        await _database.delete(_database.activitiesTable).go();
       });
       
       // Delete all photo files
@@ -164,10 +164,10 @@ class PrivacyService {
         final photos = await _database.photoDao.getPhotosForActivity(activityId);
         
         // Delete from database
-        await _database.syncQueueDao.deleteByEntityId(activityId);
-        await _database.splitDao.deleteByActivityId(activityId);
-        await _database.photoDao.deleteByActivityId(activityId);
-        await _database.trackPointDao.deleteByActivityId(activityId);
+        await (_database.delete(_database.syncQueueTable)..where((t) => t.entityId.equals(activityId))).go();
+        await (_database.delete(_database.splitsTable)..where((t) => t.activityId.equals(activityId))).go();
+        await _database.photoDao.deletePhotosForActivity(activityId);
+        await _database.trackPointDao.deleteTrackPointsForActivity(activityId);
         await _database.activityDao.deleteActivity(activityId);
         
         // Delete photo files
@@ -191,20 +191,33 @@ class PrivacyService {
       exportData['version'] = '1.0';
       
       // Export activities
-      final activities = await _database.activityDao.getAllActivities();
+      final activityEntities = await _database.activityDao.getAllActivities();
+      final activities = activityEntities.map((e) => _database.activityDao.fromEntity(e)).toList();
       exportData['activities'] = activities.map((a) => _activityToJson(a)).toList();
       
       // Export track points
-      final trackPoints = await _database.trackPointDao.getAllTrackPoints();
-      exportData['trackPoints'] = trackPoints.map((tp) => _trackPointToJson(tp)).toList();
+      final trackPoints = <Map<String, dynamic>>[];
+      for (final activity in activities) {
+        final tpEntities = await _database.trackPointDao.getTrackPointsForActivity(activity.id);
+        trackPoints.addAll(tpEntities.map((e) => _trackPointToJson(_database.trackPointDao.fromEntity(e))));
+      }
+      exportData['trackPoints'] = trackPoints;
       
       // Export photos metadata
-      final photos = await _database.photoDao.getAllPhotos();
-      exportData['photos'] = photos.map((p) => _photoToJson(p)).toList();
+      final photos = <Map<String, dynamic>>[];
+      for (final activity in activities) {
+        final photoEntities = await _database.photoDao.getPhotosForActivity(activity.id);
+        photos.addAll(photoEntities.map((e) => _photoToJson(_database.photoDao.fromEntity(e))));
+      }
+      exportData['photos'] = photos;
       
       // Export splits
-      final splits = await _database.splitDao.getAllSplits();
-      exportData['splits'] = splits.map((s) => _splitToJson(s)).toList();
+      final splits = <Map<String, dynamic>>[];
+      for (final activity in activities) {
+        final splitEntities = await _database.splitDao.getSplitsForActivity(activity.id);
+        splits.addAll(splitEntities.map((e) => _splitToJson(_database.splitDao.fromEntity(e))));
+      }
+      exportData['splits'] = splits;
       
       // Create export file
       final exportDir = await _getExportDirectory();
@@ -240,18 +253,22 @@ class PrivacyService {
       archive.addFile(ArchiveFile('data.json', jsonBytes.length, jsonBytes));
       
       // Add photos
-      final photos = await _database.photoDao.getAllPhotos();
-      for (final photo in photos) {
-        try {
-          final photoFile = File(photo.filePath);
-          if (await photoFile.exists()) {
-            final photoBytes = await photoFile.readAsBytes();
-            final fileName = 'photos/${photo.activityId}/${path.basename(photo.filePath)}';
-            archive.addFile(ArchiveFile(fileName, photoBytes.length, photoBytes));
+      final activities = await _database.activityDao.getAllActivities();
+      for (final activity in activities) {
+        final photos = await _database.photoDao.getPhotosForActivity(activity.id);
+        for (final photoEntity in photos) {
+          final photo = _database.photoDao.fromEntity(photoEntity);
+          try {
+            final photoFile = File(photo.filePath);
+            if (await photoFile.exists()) {
+              final photoBytes = await photoFile.readAsBytes();
+              final fileName = 'photos/${photo.activityId}/${path.basename(photo.filePath)}';
+              archive.addFile(ArchiveFile(fileName, photoBytes.length, photoBytes));
+            }
+          } catch (e) {
+            // Continue with other photos if one fails
+            print('Failed to add photo ${photo.filePath} to export: $e');
           }
-        } catch (e) {
-          // Continue with other photos if one fails
-          print('Failed to add photo ${photo.filePath} to export: $e');
         }
       }
       
@@ -276,14 +293,16 @@ class PrivacyService {
   /// Apply privacy settings to activity
   Future<void> applyPrivacySettings(String activityId, PrivacySettings settings) async {
     try {
-      final activity = await _database.activityDao.getActivity(activityId);
-      if (activity == null) {
+      final activityEntity = await _database.activityDao.getActivityById(activityId);
+      if (activityEntity == null) {
         throw PrivacyServiceException('Activity not found: $activityId');
       }
+      
+      final activity = _database.activityDao.fromEntity(activityEntity);
 
       // Update activity privacy level
       await _database.activityDao.updateActivity(
-        activity.copyWith(privacyLevel: settings.privacyLevel)
+        _database.activityDao.toEntity(activity.copyWith(privacy: settings.privacyLevel))
       );
 
       // Strip EXIF data from photos if requested
@@ -293,9 +312,10 @@ class PrivacyService {
         await stripMultiplePhotosExifData(photoPaths);
         
         // Update photo records to reflect EXIF stripping
-        for (final photo in photos) {
+        for (final photoEntity in photos) {
+          final photo = _database.photoDao.fromEntity(photoEntity);
           await _database.photoDao.updatePhoto(
-            photo.copyWith(hasExifData: false)
+            _database.photoDao.toEntity(photo.copyWith(hasExifData: false))
           );
         }
       }
@@ -404,15 +424,15 @@ class PrivacyService {
   Map<String, dynamic> _activityToJson(Activity activity) {
     return {
       'id': activity.id,
-      'startTime': activity.startTime.toIso8601String(),
-      'endTime': activity.endTime?.toIso8601String(),
-      'distanceMeters': activity.distanceMeters,
-      'durationSeconds': activity.duration.inSeconds,
-      'elevationGainMeters': activity.elevationGainMeters,
-      'averagePaceSecondsPerKm': activity.averagePaceSecondsPerKm,
+      'startTime': activity.startTime.dateTime.toIso8601String(),
+      'endTime': activity.endTime?.dateTime.toIso8601String(),
+      'distanceMeters': activity.distance.meters,
+      'durationSeconds': activity.duration?.inSeconds,
+      'elevationGainMeters': activity.elevationGain.meters,
+      'averagePaceSecondsPerKm': activity.averagePace?.secondsPerKilometer,
       'title': activity.title,
       'notes': activity.notes,
-      'privacyLevel': activity.privacyLevel.name,
+      'privacyLevel': activity.privacy.name,
       'coverPhotoId': activity.coverPhotoId,
     };
   }
@@ -422,7 +442,7 @@ class PrivacyService {
     return {
       'id': trackPoint.id,
       'activityId': trackPoint.activityId,
-      'timestamp': trackPoint.timestamp.toIso8601String(),
+      'timestamp': trackPoint.timestamp.dateTime.toIso8601String(),
       'latitude': trackPoint.coordinates.latitude,
       'longitude': trackPoint.coordinates.longitude,
       'elevation': trackPoint.coordinates.elevation,
@@ -437,7 +457,7 @@ class PrivacyService {
     return {
       'id': photo.id,
       'activityId': photo.activityId,
-      'timestamp': photo.timestamp.toIso8601String(),
+      'timestamp': photo.timestamp.dateTime.toIso8601String(),
       'latitude': photo.coordinates?.latitude,
       'longitude': photo.coordinates?.longitude,
       'elevation': photo.coordinates?.elevation,
@@ -454,11 +474,11 @@ class PrivacyService {
       'id': split.id,
       'activityId': split.activityId,
       'splitNumber': split.splitNumber,
-      'distanceMeters': split.distanceMeters,
+      'distanceMeters': split.distance.meters,
       'durationSeconds': split.duration.inSeconds,
-      'paceSecondsPerKm': split.paceSecondsPerKm,
-      'elevationGainMeters': split.elevationGainMeters,
-      'elevationLossMeters': split.elevationLossMeters,
+      'paceSecondsPerKm': split.pace.secondsPerKilometer,
+      'elevationGainMeters': split.elevationGain.meters,
+      'elevationLossMeters': split.elevationLoss.meters,
     };
   }
 }

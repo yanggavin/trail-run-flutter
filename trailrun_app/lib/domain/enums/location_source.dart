@@ -12,6 +12,9 @@ enum LocationSource {
   /// Manual entry by user
   manual,
   
+  /// Interpolated point (e.g. during auto-pause or signal loss)
+  interpolated,
+  
   /// Unknown or unspecified source
   unknown,
 }
@@ -28,6 +31,8 @@ extension LocationSourceExtension on LocationSource {
         return 'Fused';
       case LocationSource.manual:
         return 'Manual';
+      case LocationSource.interpolated:
+        return 'Interpolated';
       case LocationSource.unknown:
         return 'Unknown';
     }
@@ -41,6 +46,7 @@ extension LocationSourceExtension on LocationSource {
         return true;
       case LocationSource.network:
       case LocationSource.manual:
+      case LocationSource.interpolated:
       case LocationSource.unknown:
         return false;
     }

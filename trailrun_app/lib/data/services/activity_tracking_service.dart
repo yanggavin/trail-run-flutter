@@ -50,6 +50,8 @@ class ActivityStatistics {
     required this.elevationLoss,
     required this.currentSpeed,
     required this.maxSpeed,
+    required this.trackPointCount,
+    required this.photoCount,
   });
 
   final Distance distance;
@@ -61,6 +63,8 @@ class ActivityStatistics {
   final Elevation elevationLoss;
   final Speed currentSpeed;
   final Speed maxSpeed;
+  final int trackPointCount;
+  final int photoCount;
 }
 
 /// Activity tracking service that manages the complete lifecycle
@@ -93,6 +97,7 @@ class ActivityTrackingService {
   
   // Statistics tracking
   final List<TrackPoint> _trackPoints = [];
+  int _photoCount = 0;
   DateTime? _startTime;
   DateTime? _lastMoveTime;
   DateTime? _pauseStartTime;
@@ -319,6 +324,7 @@ class ActivityTrackingService {
 
   void _initializeTrackingState() {
     _trackPoints.clear();
+    _photoCount = 0;
     _startTime = DateTime.now();
     _lastMoveTime = _startTime;
     _pauseStartTime = null;
@@ -366,6 +372,12 @@ class ActivityTrackingService {
     // Emit updated statistics
     final stats = _calculateCurrentStatistics();
     _statisticsController.add(stats);
+  }
+
+  /// Notify tracking service that a photo was captured during the activity
+  void notifyPhotoCaptured() {
+    _photoCount += 1;
+    _statisticsController.add(_calculateCurrentStatistics());
   }
 
   void _handleLocationError(dynamic error) {
@@ -520,6 +532,8 @@ class ActivityTrackingService {
       elevationLoss: _currentElevationLoss,
       currentSpeed: _currentSpeed,
       maxSpeed: _maxSpeed,
+      trackPointCount: _trackPoints.length,
+      photoCount: _photoCount,
     );
   }
 

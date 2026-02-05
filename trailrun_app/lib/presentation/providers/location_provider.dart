@@ -106,7 +106,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
   Future<void> startTracking() async {
     try {
-      await _locationRepository.startTracking();
+      await _locationRepository.startLocationTracking();
       state = state.copyWith(isTracking: true, error: null);
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -115,7 +115,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
   Future<void> stopTracking() async {
     try {
-      await _locationRepository.stopTracking();
+      await _locationRepository.stopLocationTracking();
       state = state.copyWith(isTracking: false, error: null);
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -144,6 +144,6 @@ final locationPermissionStatusProvider = Provider<LocationPermissionStatus>((ref
 });
 
 /// Provider for location quality (convenience)
-final locationQualityProvider = Provider<LocationQuality>((ref) {
+final locationQualityProvider = Provider<LocationQuality?>((ref) {
   return ref.watch(locationProvider).quality;
 });

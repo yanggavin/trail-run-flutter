@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/enums/privacy_level.dart';
-import '../database/database.dart';
+import '../database/database_provider.dart';
 import 'privacy_service.dart';
 
 /// Provider for privacy settings state management
@@ -21,14 +21,19 @@ final privacyServiceProvider = Provider<PrivacyService>((ref) {
 class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
   static const String _prefsKey = 'privacy_settings';
   
-  PrivacySettingsNotifier() : super(const PrivacySettings(
+  PrivacySettingsNotifier({
+    PrivacySettings? initialSettings,
+    bool loadFromDisk = true,
+  }) : super(initialSettings ?? const PrivacySettings(
     privacyLevel: PrivacyLevel.private, // Privacy by default
     stripExifData: true,
     shareLocation: false,
     sharePhotos: true,
     shareStats: true,
   )) {
-    _loadSettings();
+    if (loadFromDisk) {
+      _loadSettings();
+    }
   }
 
   /// Load settings from persistent storage
@@ -108,6 +113,3 @@ class PrivacySettingsNotifier extends StateNotifier<PrivacySettings> {
 }
 
 /// Provider for database instance (assuming it exists elsewhere)
-final databaseProvider = Provider<TrailRunDatabase>((ref) {
-  throw UnimplementedError('Database provider should be implemented in main app');
-});

@@ -3,10 +3,15 @@ package com.trailrun.trailrun_app
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
 
@@ -18,6 +23,7 @@ class LocationTrackingService : Service() {
         const val ACTION_STOP_TRACKING = "STOP_TRACKING"
         const val ACTION_PAUSE_TRACKING = "PAUSE_TRACKING"
         const val ACTION_RESUME_TRACKING = "RESUME_TRACKING"
+        const val ACTION_UPDATE_INTERVAL = "UPDATE_INTERVAL"
         
         private const val METHOD_CHANNEL = "com.trailrun.location_service"
     }
@@ -26,6 +32,11 @@ class LocationTrackingService : Service() {
     private var methodChannel: MethodChannel? = null
     private var isTracking = false
     private var isPaused = false
+    private var updateIntervalMs: Long = 2000
+    private var minDistanceMeters: Float = 0f
+    private var sequenceCounter = 0
+    private var locationManager: LocationManager? = null
+    private var locationListener: LocationListener? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -39,6 +50,10 @@ class LocationTrackingService : Service() {
             ACTION_STOP_TRACKING -> stopLocationTracking()
             ACTION_PAUSE_TRACKING -> pauseLocationTracking()
             ACTION_RESUME_TRACKING -> resumeLocationTracking()
+            ACTION_UPDATE_INTERVAL -> {
+                val interval = intent.getIntExtra("intervalSeconds", 2)
+                updateSamplingInterval(interval)
+            }
             "UPDATE_NOTIFICATION" -> {
                 val distance = intent.getStringExtra("distance") ?: ""
                 val duration = intent.getStringExtra("duration") ?: ""
@@ -69,10 +84,13 @@ class LocationTrackingService : Service() {
     }
 
     private fun initializeFlutterEngine() {
-        flutterEngine = FlutterEngine(this)
-        flutterEngine?.dartExecutor?.executeDartEntrypoint(
-            DartExecutor.DartEntrypoint.createDefault()
-        )
+        flutterEngine = FlutterEngineCache.getInstance().get("main_engine")
+        if (flutterEngine == null) {
+            flutterEngine = FlutterEngine(this)
+            flutterEngine?.dartExecutor?.executeDartEntrypoint(
+                DartExecutor.DartEntrypoint.createDefault()
+            )
+        }
         
         methodChannel = MethodChannel(
             flutterEngine!!.dartExecutor.binaryMessenger,
@@ -91,6 +109,8 @@ class LocationTrackingService : Service() {
         
         // Notify Flutter to start location tracking
         methodChannel?.invokeMethod("startBackgroundTracking", null)
+
+        startLocationUpdates()
     }
 
     private fun stopLocationTracking() {
@@ -99,6 +119,8 @@ class LocationTrackingService : Service() {
         
         // Notify Flutter to stop location tracking
         methodChannel?.invokeMethod("stopBackgroundTracking", null)
+
+        stopLocationUpdates()
         
         stopForeground(true)
         stopSelf()
@@ -124,6 +146,69 @@ class LocationTrackingService : Service() {
         
         // Notify Flutter to resume location tracking
         methodChannel?.invokeMethod("resumeBackgroundTracking", null)
+    }
+
+    private fun startLocationUpdates() {
+        if (locationManager == null) {
+            locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        }
+
+        if (locationListener == null) {
+            locationListener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    if (!isTracking || isPaused) return
+                    val data = hashMapOf<String, Any?>(
+                        "latitude" to location.latitude,
+                        "longitude" to location.longitude,
+                        "elevation" to location.altitude,
+                        "accuracy" to location.accuracy.toDouble(),
+                        "timestamp" to location.time,
+                        "speed" to location.speed.toDouble(),
+                        "sequence" to sequenceCounter++
+                    )
+                    methodChannel?.invokeMethod("onLocationUpdate", data)
+                }
+
+                override fun onProviderEnabled(provider: String) {
+                    // No-op
+                }
+
+                override fun onProviderDisabled(provider: String) {
+                    // No-op
+                }
+
+                @Deprecated("Deprecated in API 29")
+                override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {
+                    // No-op
+                }
+            }
+        }
+
+        try {
+            val manager = locationManager ?: return
+            val provider = when {
+                manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+                manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                else -> LocationManager.GPS_PROVIDER
+            }
+            manager.requestLocationUpdates(
+                provider,
+                updateIntervalMs,
+                minDistanceMeters,
+                locationListener as LocationListener,
+                Looper.getMainLooper()
+            )
+        } catch (e: SecurityException) {
+            methodChannel?.invokeMethod("onTrackingStateChanged", mapOf("state" to "error"))
+        }
+    }
+
+    private fun stopLocationUpdates() {
+        try {
+            val listener = locationListener ?: return
+            locationManager?.removeUpdates(listener)
+        } catch (_: Exception) {
+        }
     }
 
     private fun createTrackingNotification(contentText: String): Notification {
@@ -171,8 +256,19 @@ class LocationTrackingService : Service() {
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
+    private fun updateSamplingInterval(intervalSeconds: Int) {
+        updateIntervalMs = (intervalSeconds.coerceAtLeast(1) * 1000).toLong()
+        if (isTracking) {
+            stopLocationUpdates()
+            startLocationUpdates()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        flutterEngine?.destroy()
+        stopLocationUpdates()
+        if (FlutterEngineCache.getInstance().get("main_engine") == null) {
+            flutterEngine?.destroy()
+        }
     }
 }

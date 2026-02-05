@@ -1,40 +1,40 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/errors/app_errors.dart';
-import '../../presentation/providers/error_provider.dart';
-import 'error_handler.dart';
+import '../../domain/errors/app_errors.dart' as domain_errors;
+import '../../presentation/providers/error_provider.dart' as error_provider;
+import 'error_handler.dart' as service_error;
 import 'crash_recovery_service.dart';
 import 'graceful_degradation_service.dart';
 import 'platform_permission_service.dart';
 import 'location_service.dart';
 import 'camera_service.dart';
+import '../database/database_provider.dart';
+import 'activity_tracking_provider.dart' as tracking_provider;
+import 'activity_tracking_service.dart';
 
 /// Central service for managing all error handling and recovery in the app
 class AppErrorService {
   AppErrorService({
     required this.ref,
-    required this.permissionService,
     required this.locationService,
     required this.cameraService,
     required this.crashRecoveryService,
     required this.gracefulDegradationService,
   }) {
-    _errorHandler = ErrorHandler(
-      permissionService: permissionService,
+    _errorHandler = service_error.ErrorHandler(
       locationService: locationService,
       cameraService: cameraService,
     );
   }
 
   final Ref ref;
-  final PlatformPermissionService permissionService;
   final LocationService locationService;
   final CameraService cameraService;
   final CrashRecoveryService crashRecoveryService;
   final GracefulDegradationService gracefulDegradationService;
   
-  late final ErrorHandler _errorHandler;
+  late final service_error.ErrorHandler _errorHandler;
 
   /// Handles location-related errors
   Future<void> handleLocationError(dynamic error, StackTrace stackTrace) async {
@@ -96,11 +96,12 @@ class AppErrorService {
         await handleSyncError(error, stackTrace);
       } else {
         // Generic error
-        final genericError = AppError(
+        final genericError = domain_errors.SessionError(
+          type: domain_errors.SessionErrorType.initializationFailure,
           message: 'Generic error: $error',
           userMessage: 'An unexpected error occurred. Please try again.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Retry',
               description: 'Try the operation again',
               action: () async {
@@ -209,39 +210,67 @@ class AppErrorService {
       );
       
       // Create a structured error for permission denial
-      final permissionError = AppError(
-        message: 'Permission denied: $permissionType',
-        userMessage: response.message,
-        recoveryActions: response.alternatives.map((alt) => RecoveryAction(
-          title: alt,
-          description: alt,
-          action: () async {
-            if (response.canRetry) {
-              // Retry permission request
-              switch (permissionType) {
-                case PermissionType.location:
-                  await permissionService.requestLocationPermission();
-                  break;
-                case PermissionType.camera:
-                  await permissionService.requestCameraPermission();
-                  break;
-                case PermissionType.storage:
-                  await permissionService.requestStoragePermission();
-                  break;
-              }
-            } else if (response.settingsRequired) {
-              await permissionService.openAppSettings();
+      final actions = response.alternatives.map((alt) => domain_errors.RecoveryAction(
+        title: alt,
+        description: alt,
+        action: () async {
+          if (response.canRetry) {
+            // Retry permission request
+            switch (permissionType) {
+              case PermissionType.location:
+                await PlatformPermissionService.requestLocationPermission();
+                break;
+              case PermissionType.camera:
+                await PlatformPermissionService.requestCameraPermission();
+                break;
+              case PermissionType.storage:
+                await PlatformPermissionService.requestStoragePermission();
+                break;
             }
-          },
-        )).toList(),
-        diagnosticInfo: {
-          'timestamp': DateTime.now().toIso8601String(),
-          'permission_type': permissionType.toString(),
-          'permanently_denied': isPermanentlyDenied,
-          'can_retry': response.canRetry,
-          'settings_required': response.settingsRequired,
+          } else if (response.settingsRequired) {
+            await PlatformPermissionService.openAppSettings();
+          }
         },
-      );
+      )).toList();
+
+      final diagnosticInfo = {
+        'timestamp': DateTime.now().toIso8601String(),
+        'permission_type': permissionType.toString(),
+        'permanently_denied': isPermanentlyDenied,
+        'can_retry': response.canRetry,
+        'settings_required': response.settingsRequired,
+      };
+
+      final domain_errors.AppError permissionError;
+      switch (permissionType) {
+        case PermissionType.location:
+          permissionError = domain_errors.LocationError(
+            type: domain_errors.LocationErrorType.permissionDenied,
+            message: 'Permission denied: $permissionType',
+            userMessage: response.message,
+            recoveryActions: actions,
+            diagnosticInfo: diagnosticInfo,
+          );
+          break;
+        case PermissionType.camera:
+          permissionError = domain_errors.CameraError(
+            type: domain_errors.CameraErrorType.permissionDenied,
+            message: 'Permission denied: $permissionType',
+            userMessage: response.message,
+            recoveryActions: actions,
+            diagnosticInfo: diagnosticInfo,
+          );
+          break;
+        case PermissionType.storage:
+          permissionError = domain_errors.StorageError(
+            type: domain_errors.StorageErrorType.permissionDenied,
+            message: 'Permission denied: $permissionType',
+            userMessage: response.message,
+            recoveryActions: actions,
+            diagnosticInfo: diagnosticInfo,
+          );
+          break;
+      }
       
       _showStructuredError(permissionError);
     } catch (error, stackTrace) {
@@ -252,7 +281,7 @@ class AppErrorService {
 
   /// Gets error statistics for debugging and monitoring
   Map<String, dynamic> getErrorStatistics() {
-    final errorNotifier = ref.read(errorProvider.notifier);
+    final errorNotifier = ref.read(error_provider.errorProvider.notifier);
     final providerStats = errorNotifier.getErrorStatistics();
     
     return {
@@ -264,18 +293,18 @@ class AppErrorService {
 
   /// Clears all errors
   void clearAllErrors() {
-    ref.read(errorProvider.notifier).clearAllErrors();
+    ref.read(error_provider.errorProvider.notifier).clearAllErrors();
   }
 
-  void _showStructuredError(AppError error) {
-    ref.read(errorProvider.notifier).showStructuredError(error);
+  void _showStructuredError(domain_errors.AppError error) {
+    ref.read(error_provider.errorProvider.notifier).showStructuredError(error);
   }
 
   void _showFallbackError(String message, dynamic originalError) {
-    ref.read(errorProvider.notifier).showErrorMessage(
+    ref.read(error_provider.errorProvider.notifier).showErrorMessage(
       message,
       details: originalError.toString(),
-      type: ErrorType.general,
+      type: error_provider.ErrorType.general,
     );
   }
 }
@@ -284,17 +313,11 @@ class AppErrorService {
 final appErrorServiceProvider = Provider<AppErrorService>((ref) {
   return AppErrorService(
     ref: ref,
-    permissionService: ref.read(platformPermissionServiceProvider),
     locationService: ref.read(locationServiceProvider),
     cameraService: ref.read(cameraServiceProvider),
     crashRecoveryService: ref.read(crashRecoveryServiceProvider),
     gracefulDegradationService: ref.read(gracefulDegradationServiceProvider),
   );
-});
-
-/// Provider for platform permission service
-final platformPermissionServiceProvider = Provider<PlatformPermissionService>((ref) {
-  return PlatformPermissionService();
 });
 
 /// Provider for location service
@@ -304,7 +327,7 @@ final locationServiceProvider = Provider<LocationService>((ref) {
 
 /// Provider for camera service
 final cameraServiceProvider = Provider<CameraService>((ref) {
-  return CameraService();
+  return CameraService.instance;
 });
 
 /// Provider for crash recovery service
@@ -318,12 +341,12 @@ final crashRecoveryServiceProvider = Provider<CrashRecoveryService>((ref) {
 /// Provider for graceful degradation service
 final gracefulDegradationServiceProvider = Provider<GracefulDegradationService>((ref) {
   return GracefulDegradationService(
-    permissionService: ref.read(platformPermissionServiceProvider),
     locationService: ref.read(locationServiceProvider),
     cameraService: ref.read(cameraServiceProvider),
   );
 });
 
-// Placeholder providers - these would need to be implemented based on existing services
-final databaseProvider = Provider<dynamic>((ref) => throw UnimplementedError());
-final activityTrackingServiceProvider = Provider<dynamic>((ref) => throw UnimplementedError());
+/// Provider for activity tracking service
+final activityTrackingServiceProvider = Provider<ActivityTrackingService>((ref) {
+  return tracking_provider.ActivityTrackingProvider.getInstance();
+});

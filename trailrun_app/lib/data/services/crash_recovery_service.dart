@@ -15,7 +15,7 @@ class CrashRecoveryService {
     required this.activityTrackingService,
   });
 
-  final AppDatabase database;
+  final TrailRunDatabase database;
   final ActivityTrackingService activityTrackingService;
 
   static const String _recoveryFileName = 'crash_recovery.json';
@@ -119,7 +119,27 @@ class CrashRecoveryService {
       debugPrint('Recovering tracking session for activity: ${activity.id}');
       
       // Restore the tracking state
-      await activityTrackingService.resumeActivity(activity.id);
+      final recovered = await activityTrackingService.recoverInProgressActivity();
+      if (recovered == null) {
+        throw SessionError(
+          type: SessionErrorType.crashRecovery,
+          message: 'No active activity found for recovery',
+          userMessage: 'We couldn\'t find an active session to recover.',
+          recoveryActions: [
+            RecoveryAction(
+              title: 'Start New Session',
+              description: 'Begin a new tracking session',
+              action: () async => await _cleanupRecoveryFiles(),
+            ),
+          ],
+          diagnosticInfo: {
+            'timestamp': DateTime.now().toIso8601String(),
+            'activity_id': activity.id,
+          },
+        );
+      }
+
+      await activityTrackingService.resumeActivity();
       
       // Clean up recovery files
       await _cleanupRecoveryFiles();
@@ -225,8 +245,12 @@ class CrashRecoveryService {
 
   Future<Activity?> _getActivityForRecovery(String activityId) async {
     try {
-      final activityData = await database.activityDao.getActivityById(activityId);
-      return activityData;
+      final activityEntity = await database.activityDao.getActivityById(activityId);
+      if (activityEntity == null) {
+        return null;
+      }
+
+      return database.activityDao.fromEntity(activityEntity);
     } catch (error) {
       debugPrint('Failed to get activity for recovery: $error');
       return null;
@@ -238,9 +262,9 @@ class CrashRecoveryService {
       'activity': {
         'id': activity.id,
         'title': activity.title,
-        'startTime': activity.startTime.toIso8601String(),
-        'distanceMeters': activity.distanceMeters,
-        'duration': activity.duration.inSeconds,
+        'startTime': activity.startTime.dateTime.toIso8601String(),
+        'distanceMeters': activity.distance.meters,
+        'duration': (activity.duration ?? Duration.zero).inSeconds,
       },
       'sessionData': sessionData,
       'recoveryTimestamp': DateTime.now().toIso8601String(),

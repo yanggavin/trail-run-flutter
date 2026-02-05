@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'database.dart';
 import 'daos/activity_dao.dart';
@@ -6,15 +8,26 @@ import 'daos/photo_dao.dart';
 import 'daos/split_dao.dart';
 import 'daos/sync_queue_dao.dart';
 
+/// Singleton database provider for non-Riverpod usage
+class DatabaseProvider {
+  static final TrailRunDatabase _instance = TrailRunDatabase();
+
+  static TrailRunDatabase getInstance() => _instance;
+
+  static Future<void> dispose() {
+    return _instance.close();
+  }
+}
+
 /// Provider for the TrailRun database instance
 final databaseProvider = Provider<TrailRunDatabase>((ref) {
-  final database = TrailRunDatabase();
-  
+  final database = DatabaseProvider.getInstance();
+
   // Ensure database is properly disposed when provider is disposed
   ref.onDispose(() {
-    database.close();
+    unawaited(DatabaseProvider.dispose());
   });
-  
+
   return database;
 });
 

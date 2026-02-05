@@ -26,7 +26,7 @@ final localFirstDataManagerProvider = Provider<LocalFirstDataManager>((ref) {
 
 /// Provider for initializing offline data services
 final offlineDataInitializationProvider = FutureProvider<void>((ref) async {
-  final database = await ref.watch(databaseProvider.future);
+  final database = ref.watch(databaseProvider);
   final syncService = ref.watch(syncServiceProvider);
   final dataManager = ref.watch(localFirstDataManagerProvider);
   final networkService = ref.watch(networkConnectivityServiceProvider);
@@ -35,7 +35,7 @@ final offlineDataInitializationProvider = FutureProvider<void>((ref) async {
   await networkService.initialize();
 
   // Initialize sync service
-  await syncService.initialize(database: database);
+  await syncService.initialize(database: database, localOnly: true);
 
   // Initialize data manager
   await dataManager.initialize(

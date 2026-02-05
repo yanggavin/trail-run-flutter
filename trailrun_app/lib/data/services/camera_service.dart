@@ -17,6 +17,9 @@ class CameraService {
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   bool _isCapturing = false;
+  double _minZoomLevel = 1.0;
+  double _maxZoomLevel = 1.0;
+  double _currentZoomLevel = 1.0;
 
   /// Initialize camera service
   Future<void> initialize() async {
@@ -36,6 +39,9 @@ class CameraService {
 
       _controller = PhotoService.createCameraController(backCamera);
       await _controller!.initialize();
+      _minZoomLevel = await _controller!.getMinZoomLevel();
+      _maxZoomLevel = await _controller!.getMaxZoomLevel();
+      _currentZoomLevel = _minZoomLevel;
       
       _isInitialized = true;
     } catch (e) {
@@ -65,6 +71,9 @@ class CameraService {
       await _controller?.dispose();
       _controller = PhotoService.createCameraController(camera);
       await _controller!.initialize();
+      _minZoomLevel = await _controller!.getMinZoomLevel();
+      _maxZoomLevel = await _controller!.getMaxZoomLevel();
+      _currentZoomLevel = _minZoomLevel;
     } catch (e) {
       throw CameraServiceException('Failed to switch camera: $e');
     }
@@ -201,8 +210,8 @@ class CameraService {
         FlashMode.always,
         FlashMode.torch,
       ],
-      maxZoomLevel: _controller!.value.maxZoomLevel,
-      minZoomLevel: _controller!.value.minZoomLevel,
+      maxZoomLevel: _maxZoomLevel,
+      minZoomLevel: _minZoomLevel,
     );
   }
 
@@ -213,14 +222,16 @@ class CameraService {
     }
 
     try {
-      await _controller!.setZoomLevel(zoom);
+      final clampedZoom = zoom.clamp(_minZoomLevel, _maxZoomLevel) as double;
+      await _controller!.setZoomLevel(clampedZoom);
+      _currentZoomLevel = clampedZoom;
     } catch (e) {
       throw CameraServiceException('Failed to set zoom level: $e');
     }
   }
 
   /// Get current zoom level
-  double get zoomLevel => _controller?.value.zoomLevel ?? 1.0;
+  double get zoomLevel => _currentZoomLevel;
 
   /// Dispose camera resources
   Future<void> dispose() async {

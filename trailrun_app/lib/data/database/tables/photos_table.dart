@@ -39,6 +39,9 @@ class PhotosTable extends Table {
   /// Optional user-provided caption
   TextColumn get caption => text().nullable()();
 
+  /// Sync state of the photo (0: pending, 1: synced, 2: failed)
+  IntColumn get syncState => integer().named('sync_state').withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {id};
 

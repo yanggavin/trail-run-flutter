@@ -3,25 +3,26 @@ import '../../domain/repositories/location_repository.dart';
 import '../database/database_provider.dart';
 import '../repositories/activity_repository_impl.dart';
 import 'activity_tracking_service.dart';
-import 'location_service_provider.dart';
+import 'location_service_factory.dart';
 
 /// Provider for activity tracking service with dependency injection
 class ActivityTrackingProvider {
   static ActivityTrackingService? _instance;
   static ActivityRepository? _activityRepository;
   static LocationRepository? _locationRepository;
+  static AutoPauseConfig _autoPauseConfig = const AutoPauseConfig(
+    enabled: true,
+    speedThreshold: 0.5, // 0.5 m/s (1.8 km/h)
+    timeThreshold: Duration(seconds: 10),
+    resumeSpeedThreshold: 1.0, // 1.0 m/s (3.6 km/h)
+  );
 
   /// Get singleton instance of activity tracking service
   static ActivityTrackingService getInstance() {
     _instance ??= ActivityTrackingService(
       activityRepository: getActivityRepository(),
       locationRepository: getLocationRepository(),
-      autoPauseConfig: const AutoPauseConfig(
-        enabled: true,
-        speedThreshold: 0.5, // 0.5 m/s (1.8 km/h)
-        timeThreshold: Duration(seconds: 10),
-        resumeSpeedThreshold: 1.0, // 1.0 m/s (3.6 km/h)
-      ),
+      autoPauseConfig: _autoPauseConfig,
     );
     return _instance!;
   }
@@ -36,7 +37,7 @@ class ActivityTrackingProvider {
 
   /// Get location repository instance
   static LocationRepository getLocationRepository() {
-    _locationRepository ??= LocationServiceProvider.getInstance();
+    _locationRepository ??= LocationServiceFactory.create();
     return _locationRepository!;
   }
 
@@ -62,18 +63,11 @@ class ActivityTrackingProvider {
       resumeSpeedThreshold: resumeSpeedThreshold,
     );
 
-    // If instance exists, update its configuration
-    _instance?.configureAutoPause(config);
+    _autoPauseConfig = config;
 
-    // For new instances, we'd need to store this config
-    // For now, we'll recreate the instance with new config
+    // If instance exists, update its configuration
     if (_instance != null) {
-      _instance!.dispose();
-      _instance = ActivityTrackingService(
-        activityRepository: getActivityRepository(),
-        locationRepository: getLocationRepository(),
-        autoPauseConfig: config,
-      );
+      _instance!.configureAutoPause(config);
     }
   }
 }

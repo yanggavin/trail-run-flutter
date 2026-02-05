@@ -7,6 +7,7 @@ import '../screens/activity_summary_screen.dart';
 import '../screens/activity_history_screen.dart';
 import '../screens/activity_map_screen.dart';
 import '../screens/privacy_settings_screen.dart';
+import '../screens/auto_pause_settings_screen.dart';
 
 /// App routes
 class AppRoutes {
@@ -15,6 +16,7 @@ class AppRoutes {
   static const String activitySummary = '/activity';
   static const String activityMap = '/activity/map';
   static const String privacySettings = '/settings/privacy';
+  static const String autoPauseSettings = '/settings/auto_pause';
   static const String tracking = '/tracking';
 }
 
@@ -63,6 +65,12 @@ class AppRouter {
       case AppRoutes.privacySettings:
         return MaterialPageRoute(
           builder: (_) => const PrivacySettingsScreen(),
+          settings: settings,
+        );
+
+      case AppRoutes.autoPauseSettings:
+        return MaterialPageRoute(
+          builder: (_) => const AutoPauseSettingsScreen(),
           settings: settings,
         );
         
@@ -131,6 +139,10 @@ class AppNavigator {
 
   static void toPrivacySettings(BuildContext context) {
     Navigator.of(context).pushNamed(AppRoutes.privacySettings);
+  }
+
+  static void toAutoPauseSettings(BuildContext context) {
+    Navigator.of(context).pushNamed(AppRoutes.autoPauseSettings);
   }
 
   static void toTracking(BuildContext context) {

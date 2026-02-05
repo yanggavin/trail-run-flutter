@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../data/services/privacy_service.dart';
 import '../../data/services/privacy_settings_provider.dart';
 
 /// Widget for managing user data (export, delete)

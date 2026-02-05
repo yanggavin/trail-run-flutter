@@ -2204,6 +2204,15 @@ class MockPhotoDao extends _i1.Mock implements _i6.PhotoDao {
       ) as _i10.Future<int>);
 
   @override
+  _i10.Future<int> getTotalPhotosCount() => (super.noSuchMethod(
+        Invocation.method(
+          #getTotalPhotosCount,
+          [],
+        ),
+        returnValue: _i10.Future<int>.value(0),
+      ) as _i10.Future<int>);
+
+  @override
   _i10.Future<List<_i3.PhotoEntity>> searchPhotosByCaption({
     required String? activityId,
     required String? query,
@@ -3048,6 +3057,15 @@ class MockTrackPointDao extends _i1.Mock implements _i5.TrackPointDao {
         Invocation.method(
           #getTrackPointsCount,
           [activityId],
+        ),
+        returnValue: _i10.Future<int>.value(0),
+      ) as _i10.Future<int>);
+
+  @override
+  _i10.Future<int> getTotalTrackPointsCount() => (super.noSuchMethod(
+        Invocation.method(
+          #getTotalTrackPointsCount,
+          [],
         ),
         returnValue: _i10.Future<int>.value(0),
       ) as _i10.Future<int>);

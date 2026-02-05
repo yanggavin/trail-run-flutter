@@ -118,6 +118,17 @@ class PlatformSpecificService {
     }
   }
 
+  static Future<String> getBackgroundAppRefreshStatus() async {
+    if (!Platform.isIOS) return 'Unknown';
+
+    try {
+      final result = await _permissionChannel.invokeMethod<String>('getBackgroundAppRefreshStatus');
+      return result ?? 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
   static Future<void> openAppSettings() async {
     try {
       await _permissionChannel.invokeMethod('openAppSettings');

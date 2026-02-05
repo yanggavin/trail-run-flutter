@@ -4,38 +4,36 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:camera/camera.dart';
 import 'package:drift/drift.dart';
-import '../../domain/errors/app_errors.dart';
+import '../../domain/errors/app_errors.dart' as domain_errors;
 import 'platform_permission_service.dart';
-import 'location_service.dart';
+import 'location_service.dart' as location_service;
 import 'camera_service.dart';
 
 /// Central error handler that converts platform exceptions to structured AppErrors
 /// and provides recovery mechanisms
 class ErrorHandler {
   ErrorHandler({
-    required this.permissionService,
     required this.locationService,
     required this.cameraService,
   });
 
-  final PlatformPermissionService permissionService;
-  final LocationService locationService;
+  final location_service.LocationService locationService;
   final CameraService cameraService;
 
   /// Handles location-related errors with appropriate recovery actions
-  LocationError handleLocationError(dynamic error, StackTrace stackTrace) {
+  domain_errors.LocationError handleLocationError(dynamic error, StackTrace stackTrace) {
     debugPrint('Location error: $error\n$stackTrace');
 
     if (error is LocationServiceDisabledException) {
-      return LocationError(
-        type: LocationErrorType.serviceDisabled,
+      return domain_errors.LocationError(
+        type: domain_errors.LocationErrorType.serviceDisabled,
         message: 'Location services are disabled',
         userMessage: 'Location services are turned off. Please enable them to track your runs.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Open Settings',
             description: 'Go to device settings to enable location services',
-            action: () async => await permissionService.openLocationSettings(),
+            action: () async => await PlatformPermissionService.openLocationSettings(),
           ),
         ],
         diagnosticInfo: {
@@ -46,20 +44,20 @@ class ErrorHandler {
     }
 
     if (error is PermissionDeniedException) {
-      return LocationError(
-        type: LocationErrorType.permissionDenied,
+      return domain_errors.LocationError(
+        type: domain_errors.LocationErrorType.permissionDenied,
         message: 'Location permission denied',
         userMessage: 'Location permission is required to track your runs.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Grant Permission',
             description: 'Allow location access in app settings',
-            action: () async => await permissionService.requestLocationPermission(),
+            action: () async => await PlatformPermissionService.requestLocationPermission(),
           ),
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Open App Settings',
             description: 'Manually enable location permission',
-            action: () async => await permissionService.openAppSettings(),
+            action: () async => await PlatformPermissionService.openAppSettings(),
           ),
         ],
         diagnosticInfo: {
@@ -70,17 +68,17 @@ class ErrorHandler {
     }
 
     if (error is TimeoutException) {
-      return LocationError(
-        type: LocationErrorType.timeout,
+      return domain_errors.LocationError(
+        type: domain_errors.LocationErrorType.timeout,
         message: 'Location request timed out',
         userMessage: 'Unable to get your location. This might be due to poor GPS signal.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Try Again',
             description: 'Retry getting your location',
             action: () async => await locationService.getCurrentLocation(),
           ),
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Move to Open Area',
             description: 'Go outside or near a window for better GPS signal',
             action: () async {}, // User action, no code needed
@@ -95,12 +93,12 @@ class ErrorHandler {
     }
 
     // Generic location error
-    return LocationError(
-      type: LocationErrorType.signalLost,
+    return domain_errors.LocationError(
+      type: domain_errors.LocationErrorType.signalLost,
       message: 'Location error: $error',
       userMessage: 'There was a problem with location tracking. Please try again.',
       recoveryActions: [
-        RecoveryAction(
+        domain_errors.RecoveryAction(
           title: 'Retry',
           description: 'Try to get your location again',
           action: () async => await locationService.getCurrentLocation(),
@@ -115,26 +113,26 @@ class ErrorHandler {
   }
 
   /// Handles camera-related errors with appropriate recovery actions
-  CameraError handleCameraError(dynamic error, StackTrace stackTrace) {
+  domain_errors.CameraError handleCameraError(dynamic error, StackTrace stackTrace) {
     debugPrint('Camera error: $error\n$stackTrace');
 
     if (error is CameraException) {
       switch (error.code) {
         case 'CameraAccessDenied':
-          return CameraError(
-            type: CameraErrorType.permissionDenied,
+          return domain_errors.CameraError(
+            type: domain_errors.CameraErrorType.permissionDenied,
             message: 'Camera permission denied',
             userMessage: 'Camera permission is required to take photos during your runs.',
             recoveryActions: [
-              RecoveryAction(
+              domain_errors.RecoveryAction(
                 title: 'Grant Permission',
                 description: 'Allow camera access in app settings',
-                action: () async => await permissionService.requestCameraPermission(),
+                action: () async => await PlatformPermissionService.requestCameraPermission(),
               ),
-              RecoveryAction(
+              domain_errors.RecoveryAction(
                 title: 'Open App Settings',
                 description: 'Manually enable camera permission',
-                action: () async => await permissionService.openAppSettings(),
+                action: () async => await PlatformPermissionService.openAppSettings(),
               ),
             ],
             diagnosticInfo: {
@@ -144,8 +142,8 @@ class ErrorHandler {
             },
           );
         case 'CameraNotFound':
-          return CameraError(
-            type: CameraErrorType.cameraNotAvailable,
+          return domain_errors.CameraError(
+            type: domain_errors.CameraErrorType.cameraNotAvailable,
             message: 'Camera not available',
             userMessage: 'No camera is available on this device.',
             recoveryActions: [],
@@ -156,15 +154,15 @@ class ErrorHandler {
             },
           );
         default:
-          return CameraError(
-            type: CameraErrorType.captureFailure,
+          return domain_errors.CameraError(
+            type: domain_errors.CameraErrorType.captureFailure,
             message: 'Camera error: ${error.code} - ${error.description}',
             userMessage: 'There was a problem with the camera. Please try again.',
             recoveryActions: [
-              RecoveryAction(
+              domain_errors.RecoveryAction(
                 title: 'Try Again',
                 description: 'Attempt to take the photo again',
-                action: () async => await cameraService.capturePhoto(),
+                action: () async => await cameraService.initialize(),
               ),
             ],
             diagnosticInfo: {
@@ -178,15 +176,15 @@ class ErrorHandler {
     }
 
     // Generic camera error
-    return CameraError(
-      type: CameraErrorType.captureFailure,
+    return domain_errors.CameraError(
+      type: domain_errors.CameraErrorType.captureFailure,
       message: 'Camera error: $error',
       userMessage: 'There was a problem with the camera. Please try again.',
       recoveryActions: [
-        RecoveryAction(
+        domain_errors.RecoveryAction(
           title: 'Retry',
           description: 'Try to take the photo again',
-          action: () async => await cameraService.capturePhoto(),
+          action: () async => await cameraService.initialize(),
         ),
       ],
       diagnosticInfo: {
@@ -198,22 +196,22 @@ class ErrorHandler {
   }
 
   /// Handles storage-related errors with appropriate recovery actions
-  StorageError handleStorageError(dynamic error, StackTrace stackTrace) {
+  domain_errors.StorageError handleStorageError(dynamic error, StackTrace stackTrace) {
     debugPrint('Storage error: $error\n$stackTrace');
 
     if (error is FileSystemException) {
       if (error.osError?.errorCode == 28) { // ENOSPC - No space left on device
-        return StorageError(
-          type: StorageErrorType.diskFull,
+        return domain_errors.StorageError(
+          type: domain_errors.StorageErrorType.diskFull,
           message: 'Insufficient storage space',
           userMessage: 'Your device is running low on storage space.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Free Up Space',
               description: 'Delete old photos or apps to make room',
               action: () async {}, // User action
             ),
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Delete Old Activities',
               description: 'Remove old TrailRun activities to save space',
               action: () async {
@@ -233,19 +231,19 @@ class ErrorHandler {
     }
 
     if (error is DriftWrappedException) {
-      return StorageError(
-        type: StorageErrorType.databaseCorruption,
+      return domain_errors.StorageError(
+        type: domain_errors.StorageErrorType.databaseCorruption,
         message: 'Database error: ${error.cause}',
         userMessage: 'There was a problem with the app database. Your data may need to be restored.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Restart App',
             description: 'Close and reopen the app to attempt recovery',
             action: () async {
               // This would trigger an app restart
             },
           ),
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Reset Database',
             description: 'Clear all data and start fresh (this will delete your activities)',
             action: () async {
@@ -263,12 +261,12 @@ class ErrorHandler {
     }
 
     // Generic storage error
-    return StorageError(
-      type: StorageErrorType.ioFailure,
+    return domain_errors.StorageError(
+      type: domain_errors.StorageErrorType.ioFailure,
       message: 'Storage error: $error',
       userMessage: 'There was a problem saving your data. Please try again.',
       recoveryActions: [
-        RecoveryAction(
+        domain_errors.RecoveryAction(
           title: 'Retry',
           description: 'Try the operation again',
           action: () async {
@@ -285,16 +283,16 @@ class ErrorHandler {
   }
 
   /// Handles sync-related errors with appropriate recovery actions
-  SyncError handleSyncError(dynamic error, StackTrace stackTrace) {
+  domain_errors.SyncError handleSyncError(dynamic error, StackTrace stackTrace) {
     debugPrint('Sync error: $error\n$stackTrace');
 
     if (error is SocketException) {
-      return SyncError(
-        type: SyncErrorType.networkUnavailable,
+      return domain_errors.SyncError(
+        type: domain_errors.SyncErrorType.networkUnavailable,
         message: 'Network connection failed',
         userMessage: 'No internet connection available. Your data will sync when connection is restored.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Check Connection',
             description: 'Verify your internet connection and try again',
             action: () async {
@@ -314,12 +312,12 @@ class ErrorHandler {
       final statusCode = int.tryParse(error.message.split(' ').first) ?? 0;
       
       if (statusCode == 401 || statusCode == 403) {
-        return SyncError(
-          type: SyncErrorType.authenticationFailure,
+        return domain_errors.SyncError(
+          type: domain_errors.SyncErrorType.authenticationFailure,
           message: 'Authentication failed: ${error.message}',
           userMessage: 'Please sign in again to sync your data.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Sign In',
               description: 'Re-authenticate to continue syncing',
               action: () async {
@@ -336,12 +334,12 @@ class ErrorHandler {
       }
 
       if (statusCode >= 500) {
-        return SyncError(
-          type: SyncErrorType.serverError,
+        return domain_errors.SyncError(
+          type: domain_errors.SyncErrorType.serverError,
           message: 'Server error: ${error.message}',
           userMessage: 'The sync service is temporarily unavailable. We\'ll try again later.',
           recoveryActions: [
-            RecoveryAction(
+            domain_errors.RecoveryAction(
               title: 'Try Later',
               description: 'Sync will be retried automatically',
               action: () async {}, // Automatic retry
@@ -357,12 +355,12 @@ class ErrorHandler {
     }
 
     // Generic sync error
-    return SyncError(
-      type: SyncErrorType.networkUnavailable,
+    return domain_errors.SyncError(
+      type: domain_errors.SyncErrorType.networkUnavailable,
       message: 'Sync error: $error',
       userMessage: 'There was a problem syncing your data. We\'ll try again later.',
       recoveryActions: [
-        RecoveryAction(
+        domain_errors.RecoveryAction(
           title: 'Retry Now',
           description: 'Try to sync again immediately',
           action: () async {
@@ -378,10 +376,10 @@ class ErrorHandler {
     );
   }
 
-  /// Wraps a function with error handling and automatic conversion to AppError
+  /// Wraps a function with error handling and automatic conversion to domain_errors.AppError
   static Future<T> withErrorHandling<T>(
     Future<T> Function() operation, {
-    required AppError Function(dynamic error, StackTrace stackTrace) errorHandler,
+    required domain_errors.AppError Function(dynamic error, StackTrace stackTrace) errorHandler,
     int maxRetries = 0,
     Duration retryDelay = const Duration(seconds: 1),
   }) async {
@@ -408,7 +406,7 @@ class ErrorHandler {
   /// Wraps a stream with error handling
   static Stream<T> withStreamErrorHandling<T>(
     Stream<T> stream, {
-    required AppError Function(dynamic error, StackTrace stackTrace) errorHandler,
+    required domain_errors.AppError Function(dynamic error, StackTrace stackTrace) errorHandler,
   }) {
     return stream.handleError((error, stackTrace) {
       throw errorHandler(error, stackTrace);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../navigation/app_router.dart';
+
 /// Widget displaying auto-pause status and manual override controls
 class AutoPauseIndicator extends StatefulWidget {
   const AutoPauseIndicator({
@@ -233,7 +235,7 @@ class _AutoPauseIndicatorState extends State<AutoPauseIndicator>
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // TODO: Navigate to full settings screen
+              AppNavigator.toAutoPauseSettings(context);
             },
             child: const Text('Adjust Settings'),
           ),

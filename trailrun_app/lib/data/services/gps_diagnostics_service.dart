@@ -3,8 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import '../../domain/errors/app_errors.dart';
-import 'location_service.dart';
+import '../../domain/errors/app_errors.dart' as domain_errors;
+import 'location_service.dart' as location_service;
+import 'platform_specific_service.dart';
 
 /// Service for GPS diagnostics and troubleshooting information
 class GpsDiagnosticsService {
@@ -12,7 +13,7 @@ class GpsDiagnosticsService {
     required this.locationService,
   });
 
-  final LocationService locationService;
+  final location_service.LocationService locationService;
 
   /// Gets comprehensive GPS diagnostic information
   Future<GpsDiagnostics> getDiagnostics() async {
@@ -91,12 +92,12 @@ class GpsDiagnosticsService {
       
     } catch (error, stackTrace) {
       debugPrint('Failed to get GPS diagnostics: $error\n$stackTrace');
-      throw LocationError(
-        type: LocationErrorType.signalLost,
+      throw domain_errors.LocationError(
+        type: domain_errors.LocationErrorType.signalLost,
         message: 'Failed to get GPS diagnostics: $error',
         userMessage: 'Unable to gather GPS diagnostic information.',
         recoveryActions: [
-          RecoveryAction(
+          domain_errors.RecoveryAction(
             title: 'Retry',
             description: 'Try to get diagnostics again',
             action: () async => await getDiagnostics(),
@@ -291,15 +292,22 @@ class GpsDiagnosticsService {
   }
 
   Future<String> _checkBatteryOptimization() async {
-    // This would require platform-specific implementation
-    // For now, return a placeholder
-    return 'Unknown';
+    try {
+      if (!Platform.isAndroid) return 'Unknown';
+      final isLowPower = await PlatformSpecificService.isLowPowerModeEnabled();
+      return isLowPower ? 'Optimized' : 'Not optimized';
+    } catch (_) {
+      return 'Unknown';
+    }
   }
 
   Future<String> _checkBackgroundAppRefresh() async {
-    // This would require platform-specific implementation
-    // For now, return a placeholder
-    return 'Unknown';
+    try {
+      if (!Platform.isIOS) return 'Unknown';
+      return await PlatformSpecificService.getBackgroundAppRefreshStatus();
+    } catch (_) {
+      return 'Unknown';
+    }
   }
 
   Future<String> _checkNetworkConnectivity() async {

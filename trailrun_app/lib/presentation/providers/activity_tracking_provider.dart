@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/activity.dart';
-import '../../data/services/activity_tracking_service.dart';
+import '../../data/services/activity_tracking_service.dart' as tracking_service;
 import '../../data/services/activity_tracking_provider.dart' as service_provider;
 
 /// Activity tracking state
@@ -83,7 +83,7 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
     _initialize();
   }
 
-  final ActivityTrackingService _trackingService;
+  final tracking_service.ActivityTrackingService _trackingService;
 
   void _initialize() {
     // Initial state
@@ -92,7 +92,7 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
     );
 
     // Listen to activity updates
-    _trackingService.currentActivityStream.listen(
+    _trackingService.activityStream.listen(
       (activity) {
         state = state.copyWith(currentActivity: activity);
       },
@@ -102,12 +102,18 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
     );
 
     // Listen to tracking state updates
-    _trackingService.trackingStateStream.listen(
+    _trackingService.stateStream.listen(
       (trackingState) {
+        final isTracking = trackingState == tracking_service.ActivityTrackingState.active ||
+            trackingState == tracking_service.ActivityTrackingState.paused ||
+            trackingState == tracking_service.ActivityTrackingState.autoPaused;
+        final isPaused = trackingState == tracking_service.ActivityTrackingState.paused ||
+            trackingState == tracking_service.ActivityTrackingState.autoPaused;
+
         state = state.copyWith(
-          isTracking: trackingState.isTracking,
-          isPaused: trackingState.isPaused,
-          isAutopaused: trackingState.isAutopaused,
+          isTracking: isTracking,
+          isPaused: isPaused,
+          isAutopaused: trackingState == tracking_service.ActivityTrackingState.autoPaused,
         );
       },
     );
@@ -116,12 +122,12 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
     _trackingService.statisticsStream.listen(
       (stats) {
         state = state.copyWith(
-          elapsedTime: stats.elapsedTime,
-          distance: stats.distanceMeters,
-          currentPace: stats.currentPaceSecondsPerKm,
-          averagePace: stats.averagePaceSecondsPerKm,
-          elevationGain: stats.elevationGainMeters,
-          elevationLoss: stats.elevationLossMeters,
+          elapsedTime: stats.duration,
+          distance: stats.distance.meters,
+          currentPace: stats.currentPace?.secondsPerKilometer ?? 0.0,
+          averagePace: stats.averagePace?.secondsPerKilometer ?? 0.0,
+          elevationGain: stats.elevationGain.meters,
+          elevationLoss: stats.elevationLoss.meters,
           trackPointCount: stats.trackPointCount,
           photoCount: stats.photoCount,
         );
@@ -172,6 +178,10 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
     state = state.copyWith(isAutoPauseEnabled: isEnabled);
   }
 
+  void notifyPhotoCaptured() {
+    _trackingService.notifyPhotoCaptured();
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
   }
@@ -184,7 +194,7 @@ class ActivityTrackingNotifier extends StateNotifier<ActivityTrackingState> {
 }
 
 /// Provider for activity tracking service
-final activityTrackingServiceProvider = Provider<ActivityTrackingService>((ref) {
+final activityTrackingServiceProvider = Provider<tracking_service.ActivityTrackingService>((ref) {
   return service_provider.ActivityTrackingProvider.getInstance();
 });
 

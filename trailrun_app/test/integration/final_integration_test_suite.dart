@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:trailrun_app/main.dart' as app;
+import 'package:trailrun_app/presentation/screens/home_screen.dart';
+import 'package:trailrun_app/presentation/screens/tracking_screen.dart';
 
 // Import all integration test suites
 import 'complete_tracking_workflow_test.dart' as workflow_tests;

@@ -122,6 +122,33 @@ class PhotoService {
     }
   }
 
+  /// Save photo file to permanent storage (public)
+  static Future<String> savePhotoFile({
+    required String activityId,
+    required String photoId,
+    required List<int> imageBytes,
+    String extension = 'jpg',
+  }) async {
+    final ext = extension.isEmpty ? 'jpg' : extension.toLowerCase();
+    final bytes = Uint8List.fromList(imageBytes);
+
+    try {
+      final directory = await _getPhotosDirectory();
+      final activityDir = Directory(path.join(directory.path, activityId));
+
+      if (!await activityDir.exists()) {
+        await activityDir.create(recursive: true);
+      }
+
+      final fileName = '$photoId.$ext';
+      final file = File(path.join(activityDir.path, fileName));
+      await file.writeAsBytes(bytes);
+      return file.path;
+    } catch (e) {
+      throw PhotoServiceException('Failed to save photo file: $e');
+    }
+  }
+
   /// Generate thumbnail for photo
   static Future<String> _generateThumbnail(String originalPath) async {
     try {
@@ -144,6 +171,36 @@ class PhotoService {
       // Save thumbnail
       final thumbnailPath = originalPath.replaceAll('.jpg', '_thumb.jpg');
       final thumbnailBytes = img.encodeJpg(thumbnail, quality: _jpegQuality);
+      await File(thumbnailPath).writeAsBytes(thumbnailBytes);
+
+      return thumbnailPath;
+    } catch (e) {
+      throw PhotoServiceException('Failed to generate thumbnail: $e');
+    }
+  }
+
+  /// Generate thumbnail for photo (public)
+  static Future<String> generateThumbnail(
+    String originalPath, {
+    int maxWidth = _thumbnailMaxSize,
+    int maxHeight = _thumbnailMaxSize,
+  }) async {
+    try {
+      final originalFile = File(originalPath);
+      final imageBytes = await originalFile.readAsBytes();
+      final originalImage = img.decodeImage(imageBytes);
+      if (originalImage == null) {
+        throw PhotoServiceException('Failed to decode image for thumbnail');
+      }
+
+      final resized = img.copyResize(
+        originalImage,
+        width: originalImage.width > originalImage.height ? maxWidth : null,
+        height: originalImage.height >= originalImage.width ? maxHeight : null,
+      );
+
+      final thumbnailPath = originalPath.replaceAll(RegExp(r'\.\w+$'), '_thumb.jpg');
+      final thumbnailBytes = img.encodeJpg(resized, quality: _jpegQuality);
       await File(thumbnailPath).writeAsBytes(thumbnailBytes);
 
       return thumbnailPath;

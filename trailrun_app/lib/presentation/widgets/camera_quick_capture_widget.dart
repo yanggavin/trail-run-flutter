@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
 import '../../data/services/camera_service.dart';
+import '../../data/services/photo_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/activity_tracking_provider.dart';
 
@@ -239,8 +240,8 @@ class _CameraQuickCaptureWidgetState extends ConsumerState<CameraQuickCaptureWid
         throw Exception('No active tracking session');
       }
 
-      // Capture photo with current location
-      await CameraService.instance.capturePhotoForActivity(
+      final photoManager = ref.read(photoManagerProvider);
+      await photoManager.capturePhotoForActivity(
         activityId: trackingState.currentActivity!.id,
         currentLocation: locationState.currentLocation?.coordinates,
       );
