@@ -65,5 +65,18 @@ post_install do |installer|
       # Fix potential script issues
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
     end
+
+    # Configure iOS permission_handler compile-time permissions.
+    # Keep this list minimal to avoid requesting unrelated App Store purpose strings.
+    if target.name == 'permission_handler_apple'
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+          '$(inherited)',
+          'PERMISSION_CAMERA=1',
+          'PERMISSION_PHOTOS=1',
+          'PERMISSION_LOCATION=1',
+        ]
+      end
+    end
   end
 end

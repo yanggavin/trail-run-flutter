@@ -55,8 +55,12 @@
 	<!-- Camera permissions -->
 	<key>NSCameraUsageDescription</key>
 	<string>TrailRun needs camera access to capture photos during your runs and geotag them with your location.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TrailRun can use microphone access when capturing media in future versions. Audio recording is optional and disabled by default.</string>
 	
 	<!-- Photo library permissions -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TrailRun needs photo library access so you can browse and attach running photos to activities.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>TrailRun needs photo library access to save photos taken during your runs.</string>
 	
@@ -64,8 +68,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
-		<string>background-fetch</string>
-		<string>background-processing</string>
 	</array>
 	
 	<!-- App Transport Security -->
